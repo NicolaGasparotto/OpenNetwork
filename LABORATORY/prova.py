@@ -61,3 +61,4 @@ triple = multby(multiply, 3)
 
 print(double(5))
 print(triple(5))
+
