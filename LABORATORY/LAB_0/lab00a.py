@@ -93,6 +93,10 @@ def ex10():
     countRip = s1.lower().count(substr.lower())
     print(f"{substr} is repeated {countRip} times")
 
-ex10()
+
+# in questo modo questo pezzo di codice viene runnato solo dentro questo modulo e non anche da altri moduli
+# nel caso in cui dovessi importarlo in altri
+if __name__ == "__main__":
+    ex10()
 
 
