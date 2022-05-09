@@ -37,24 +37,12 @@ class Network:
         return self._lines
 
     def connect(self):
-        nodes_dict = self._nodes
-        lines_dict = self._lines
-        for node_label in nodes_dict:
-            node = nodes_dict[node_label]
-        for connected_node in node.connected_nodes:
-            line_label = node_label + connected_node
-        line = lines_dict[line_label]
-        line.successive[connected_node] = nodes_dict[connected_node]
-        node.successive[line_label] = lines_dict[line_label]
-
-    def connect(self):
         for node_name in self.nodes:
             for connected_node in self.nodes[node_name].connected_nodes:
                 line_name = node_name + connected_node
                 # i.e: Node 'A' (obj) -> (line AC)(obj): ->(obj)A.successive[AC] = (line AC)(obj)
                 self.nodes[node_name].successive[line_name] = self.lines[line_name]
-                self.lines[line_name].successive[connected_node] = self.nodes[connected_node]  #
-        print('all done')
+                self.lines[line_name].successive[connected_node] = self.nodes[connected_node]
 
     def propagate(self, signal_information):
         return self._nodes[signal_information.path[0]].propagate(signal_information)
