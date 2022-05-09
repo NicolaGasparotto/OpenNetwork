@@ -23,25 +23,24 @@ class Line:
 
     def latency_generation(self):
         c = 3 * (10 ** 9)
-        latency = self.lenght / (c * 2 / 3)
+        latency = float(self.length / (c * 2 / 3))
         return latency
 
     def noise_generation(self, signal_power):
         return signal_power * self.length * (10 ** -9)
 
-    """
-    Updating signal_information obj:
-        - updating latency
-        - updating noise_power
-         
-    """
-
     def propagate(self, signal_information):
         signal_information.add_latency(self.latency_generation())
         signal_information.add_noise_power(self.noise_generation(signal_information.noise_power))
+        # next element is given by the path of signal_information
+        # i want a node type element so:
+        # node = self.successive[signal_information.path[0]]
+        return
 
-        """ 
-        manca la parte
-        and call the successive element propagate
-        method, accordingly to the specified path
-        """
+    def __str__(self):
+        return f"Node line: {self.label}\nLength: {self.length}\n"
+
+
+if __name__ == '__main__':
+    linea1 = Line('A', 15.0)
+    print(linea1)

@@ -38,7 +38,7 @@ class Network:
 
 
 if __name__ == "__main__":
-    network1 = Network('../nodes.json')
+    network1 = Network('./nodes.json')
     # network1.print_nodes()
     network1.print_lines()
 

@@ -1,12 +1,11 @@
-
 class Node:
 
     # node_dictionary it's a dictionary that contains and define all these elements
     def __init__(self, node_dictionary):
-        self._successive = {}
+        self._label = node_dictionary['label']
         self._connected_nodes = node_dictionary['connected_nodes']
         self._position = node_dictionary['position']
-        self._label = node_dictionary['label']
+        self._successive = {}
 
     @property
     def label(self):
@@ -22,7 +21,7 @@ class Node:
 
     @position.setter
     def position(self, value):
-        self._postion = value
+        self._position = value
 
     @property
     def connected_nodes(self):
@@ -40,11 +39,11 @@ class Node:
     def successive(self, newsuccessive):
         self._successive = newsuccessive
 
+    def __str__(self):
+        return f"Node: {self.label}\nConnected Nodes: {self.connected_nodes}\nNode position: {self.position}\n"
 
-    """
-    MANCA LA PARTE
-    Define a propagate method that update a signal information object
-    modifying its path attribute and call the successive element propagate
-    method, accordingly to the specified path."""
-    def propagate(self, signal_information):
-        pass
+
+if __name__ == "__main__":
+    node_dict = {'label': 'A', 'connected_nodes': ['B', 'C', 'D'], 'position': (12.1, 7.8)}
+    nodo1 = Node(node_dict)
+    print(nodo1)
