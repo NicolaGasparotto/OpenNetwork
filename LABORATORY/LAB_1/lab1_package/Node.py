@@ -28,16 +28,23 @@ class Node:
         return self._connected_nodes
 
     @connected_nodes.setter
-    def connected_nodes(self, newconnected_nodes):
-        self._connected_nodes = newconnected_nodes
+    def connected_nodes(self, new_connected_nodes):
+        self._connected_nodes = new_connected_nodes
 
     @property
     def successive(self):
         return self._successive
 
     @successive.setter
-    def successive(self, newsuccessive):
-        self._successive = newsuccessive
+    def successive(self, new_successive):
+        self._successive = new_successive
+
+    def propagate(self, signal_information_i):
+        if len(signal_information_i.path) > 1:
+            line_name = signal_information_i.path[:2] # this return the string node_0 + node_1 -> ex: AB
+            signal_information_i.update_path()
+            self.successive[line_name].propagate(signal_information_i)
+        return signal_information_i
 
     def __str__(self):
         return f"Node: {self.label}\nConnected Nodes: {self.connected_nodes}\nNode position: {self.position}\n"

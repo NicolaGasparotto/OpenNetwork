@@ -1,15 +1,11 @@
 
 class Signal_information:
 
-    def __int__(self, signal_power, path):
+    def __init__(self, signal_power, path):
         self._signal_power = signal_power
         self._path = path
         self._noise_power = 0
         self._latency = 0
-
-    """
-        path is string list that contains the path of the signal 
-    """
 
     @property
     def path(self):
@@ -24,26 +20,27 @@ class Signal_information:
         return self._noise_power
 
     @path.setter
-    def path(self, newPath):
-        self.path = newPath
+    def path(self, new_path):
+        self.path = new_path
 
     @noise_power.setter
-    def noise_power(self, newNoise_power):
-        self._noise_power = newNoise_power
+    def noise_power(self, new_noise_power):
+        self._noise_power = new_noise_power
 
-    """latency it's the total latency due to the passage of the signal
-    through all of the elements in the network"""
     @latency.setter
-    def latency(self, newLatency):
-        self._latency = newLatency
+    def latency(self, new_latency):
+        self._latency = new_latency
 
-    def add_latency(self, moreLatency):
-        self._latency += moreLatency
+    def add_latency(self, more_latency):
+        self.latency += more_latency
 
-    def add_noise_power(self, moreNoise_power):
-        self._noise_power += moreNoise_power
+    def add_noise_power(self, more_noise_power):
+        self.noise_power += more_noise_power
 
-    """this method will update the path once a node is crossed"""
-    def updatePath(self):
-        self._path = self.path()
+    """
+    this method will update the path once a node is crossed
+    --> the crossed node will be removed from the path_list
+    """
+    def update_path(self):
+        del self._path[0]
 
