@@ -1,9 +1,14 @@
-class Line:
+from LAB_1.lab1_package.Signal_information import Signal_information
+
+from LAB_1.lab1_package.Node import *
+
+
+class Line(object):
 
     def __init__(self, label, length):
         self._length = length
         self._label = label
-        self._successive = {}  # empty dictionary[type Node]
+        self._successive = {}  # dict_ node
 
     @property
     def length(self):
@@ -36,11 +41,12 @@ class Line:
     def noise_generation(self, signal_power):
         return signal_power * self.length * (10 ** -9)
 
-    def propagate(self, signal_i):
+    def propagate(self, signal_i: Signal_information):
         signal_i.add_latency(self.latency_generation())
         signal_i.add_noise_power(self.noise_generation(signal_i.noise_power))
         # it will recall the method propagate for the next node
-        self._successive[signal_i.path[0]].propagate(signal_i)
+        signal_i = self.successive[signal_i.path[0]].propagate(signal_i)
+        return signal_i
 
     def __str__(self):
         return f"Node line: {self.label}\nLength: {self.length}\n"

@@ -1,11 +1,18 @@
-
-class Signal_information:
+class Signal_information(object):
 
     def __init__(self, signal_power, path):
         self._signal_power = signal_power
         self._path = path
         self._noise_power = 0
         self._latency = 0
+    
+    @property
+    def signal_power(self):
+        return self._signal_power
+    
+    @signal_power.setter
+    def signal_power(self, new_signal_power):
+        self._signal_power = new_signal_power
 
     @property
     def path(self):
@@ -37,10 +44,8 @@ class Signal_information:
     def add_noise_power(self, more_noise_power):
         self.noise_power += more_noise_power
 
-    """
-    this method will update the path once a node is crossed
-    --> the crossed node will be removed from the path_list
-    """
     def update_path(self):
         del self._path[0]
 
+    def __str__(self):
+        return f"SIGNAL:\nPath: {self.path}\nSignal Power: {self.signal_power}\nNoise Power: {self.noise_power}\nLatency: {self.latency} "

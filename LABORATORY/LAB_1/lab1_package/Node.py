@@ -1,11 +1,15 @@
-class Node:
+from LAB_1.lab1_package.Signal_information import Signal_information
+from LAB_1.lab1_package.Line import *
+
+
+class Node(object):
 
     # node_dictionary it's a dictionary that contains and define all these elements
     def __init__(self, node_dictionary):
         self._label = node_dictionary['label']
         self._connected_nodes = node_dictionary['connected_nodes']
         self._position = node_dictionary['position']
-        self._successive = {}
+        self._successive = {}  # dict Line
 
     @property
     def label(self):
@@ -36,14 +40,15 @@ class Node:
         return self._successive
 
     @successive.setter
-    def successive(self, new_successive):
-        self._successive = new_successive
+    def successive(self, successive):
+        self._successive = successive
 
     def propagate(self, signal_information_i):
-        if len(signal_information_i.path) > 1:
-            line_name = signal_information_i.path[:2] # this return the string node_0 + node_1 -> ex: AB
+        path = signal_information_i.path
+        if len(path) > 1:
+            line_name = path[0] + path[1]  # this return the string node_0 + node_1 -> ex: AB
             signal_information_i.update_path()
-            self.successive[line_name].propagate(signal_information_i)
+            signal_information_i = self.successive[line_name].propagate(signal_information_i)
         return signal_information_i
 
     def __str__(self):

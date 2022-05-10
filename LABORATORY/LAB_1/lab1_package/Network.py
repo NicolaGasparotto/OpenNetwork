@@ -1,10 +1,12 @@
 import json
+
 from itertools import permutations
 
 from math import dist
 
 from LAB_1.lab1_package.Line import Line
 from LAB_1.lab1_package.Node import Node
+from LAB_1.lab1_package.Signal_information import Signal_information
 
 
 class Network:
@@ -68,10 +70,11 @@ class Network:
             visited_nodes[node_s] = False
 
         find_path_r(start_node, end_node, visited, path_nodes)
+        list_path.sort(key=len)
         return list_path
 
     def propagate(self, signal_information):
-        return self._nodes[signal_information.path[0]].propagate(signal_information)
+        return self.nodes[signal_information.path[0]].propagate(signal_information)
 
     def print_nodes_info(self):
         for node_name in self._nodes:
@@ -86,7 +89,12 @@ if __name__ == "__main__":
     network1 = Network('../nodes.json')
     network1.connect()
 
-    print(len(network1.find_path('F', 'C')))
+    signal_1 = Signal_information(1, ['A', 'C', 'D'])
+    print(network1.propagate(signal_1).latency)
+    # network1.propagate()
+
+    # for path in network1.find_path('A', 'C'):
+    #     print(path)
     # print(len(network1.nodes))
     # print(len(list(permutations(network1.nodes.keys(), 2))))  # this is necessary for the main in point 5
     # perm = permutations()
