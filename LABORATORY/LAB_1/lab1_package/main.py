@@ -1,4 +1,5 @@
 from itertools import permutations
+from pathlib import Path
 
 from IPython.display import display
 import pandas as pd
@@ -27,7 +28,8 @@ def main():
         for path in network.find_path(pair[0], pair[1]):
             path_label = ''
             for node_name in path:
-                path_label += node_name + '->'
+                interline = ' ' if node_name == path[-1] else ' -> '
+                path_label += node_name + interline
 
             #  Propagation of the signal through the path
             #
@@ -44,12 +46,9 @@ def main():
     df['noise power'] = noises
     df['snr'] = snrs
 
-    # writing to Excel
-    result = pd.ExcelWriter('../result.xlsx')
-    # write data to excel
-    df.to_excel(result)
-    # save the students result excel
-    result.save()
+    # this method will create or rewrite the specified file
+    with pd.ExcelWriter("../result.xlsx") as writer:
+        df.to_excel(writer)
     print('Data is successfully written into Excel File')
 
 
