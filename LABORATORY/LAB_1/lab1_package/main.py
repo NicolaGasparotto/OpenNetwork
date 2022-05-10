@@ -1,5 +1,6 @@
 from itertools import permutations
 
+from IPython.display import display
 import pandas as pd
 import math
 
@@ -36,8 +37,20 @@ def main():
             paths_label.append(path_label)
             latencies.append(signal.latency)
             noises.append(signal.noise_power)
-            print(signal)
-            snrs.append(10*math.log10(signal.signal_power/signal.noise_power))
+            snrs.append(10 * math.log10(signal.signal_power / signal.noise_power))
+
+    df['path'] = paths_label
+    df['latency'] = latencies
+    df['noise power'] = noises
+    df['snr'] = snrs
+
+    # writing to Excel
+    result = pd.ExcelWriter('../result.xlsx')
+    # write data to excel
+    df.to_excel(result)
+    # save the students result excel
+    result.save()
+    print('Data is successfully written into Excel File')
 
 
 if __name__ == '__main__':

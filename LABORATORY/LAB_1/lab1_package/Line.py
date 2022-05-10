@@ -43,7 +43,7 @@ class Line(object):
 
     def propagate(self, signal_i: Signal_information):
         signal_i.add_latency(self.latency_generation())
-        signal_i.add_noise_power(self.noise_generation(signal_i.noise_power))
+        signal_i.add_noise_power(self.noise_generation(signal_i.signal_power))
         # it will recall the method propagate for the next node
         signal_i = self.successive[signal_i.path[0]].propagate(signal_i)
         return signal_i
