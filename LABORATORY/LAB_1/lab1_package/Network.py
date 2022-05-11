@@ -1,8 +1,8 @@
 import json
-
 from itertools import permutations
-
 from math import dist
+import networkx as nx
+import matplotlib.pyplot as plt
 
 from LAB_1.lab1_package.Line import Line
 from LAB_1.lab1_package.Node import Node
@@ -38,6 +38,19 @@ class Network:
     @property
     def lines(self):
         return self._lines
+
+    def draw(self):
+        G = nx.Graph()
+        G.add_nodes_from(list(self.nodes.keys()))
+        G.add_edges_from(list(self.lines.keys()))
+        pos = {}
+        for node in self.nodes:
+            pos[node] = self.nodes[node].position
+        fig, ax = plt.subplots()
+        nx.draw_networkx(G, pos=pos, ax=ax, edge_color='dodgerblue', node_color='darkseagreen', width=3.0)
+        ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
+        plt.title('Network')
+        plt.show()
 
     def connect(self):
         for node_name in self.nodes:
@@ -89,8 +102,15 @@ if __name__ == "__main__":
     network1 = Network('../nodes.json')
     network1.connect()
 
-    signal_1 = Signal_information(1, ['A', 'C', 'D'])
-    print(network1.propagate(signal_1).latency)
+    # signal_1 = Signal_information(1, ['A', 'C', 'D'])
+    # print(network1.propagate(signal_1).latency)
+
+    network1.print_lines_info()
+    # for node in network1.lines:
+    #     print(node, type(node))
+
+    network1.draw()
+
     # network1.propagate()
 
     # for path in network1.find_path('A', 'C'):

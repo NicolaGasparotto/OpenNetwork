@@ -51,6 +51,9 @@ def main():
         df.to_excel(writer)
     print('Data is successfully written into Excel File')
 
+    # it has to be at the end because plt.show() stop the execution of the program
+    network.draw()
+
 
 if __name__ == '__main__':
     main()
