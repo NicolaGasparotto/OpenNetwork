@@ -1,7 +1,7 @@
 
 class Signal_information(object):
 
-    def __init__(self, signal_power, path):
+    def __init__(self, signal_power: float, path: list[str]):
         self._signal_power = signal_power
         self._path = path
         self._noise_power = 0
