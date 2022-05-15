@@ -37,6 +37,7 @@ class Line(object):
         return float(self.length / (c * 2 / 3))  # this is the latency calculated
 
     def noise_generation(self, signal_power):
+        #print(type(signal_power), signal_power)
         return signal_power * self.length * (10 ** -9)
 
     def propagate(self, signal_i: Signal_information):

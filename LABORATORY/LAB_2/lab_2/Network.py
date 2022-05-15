@@ -9,6 +9,7 @@ from LAB_2.lab_2.Line import Line
 from LAB_2.lab_2.Node import Node
 from LAB_2.lab_2.Connection import Connection
 from LAB_1.lab1_package.Signal_information import Signal_information
+from LAB_2.lab_2.Signal_information import Signal_information
 
 
 class Network:
@@ -142,17 +143,47 @@ class Network:
         possible_paths_i_o = [path for path in self.weighted_paths['path'].tolist()
                               if (path[0] == input_node and path[-1] == output_node)]
         possible_paths_i_o_df = self.weighted_paths.loc[self.weighted_paths['path'].isin(possible_paths_i_o)]
-        return possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmax()]
+        path_list = []
+        path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmax()]
+        return path_list
+
+    def find_best_latency(self, input_node: str, output_node: str):
+        if self.weighted_paths is None:
+            self.connect()
+        # possible_paths_i_o is a list with the possible path that connects node input to output
+        possible_paths_i_o = [path for path in self.weighted_paths['path'].tolist()
+                              if (path[0] == input_node and path[-1] == output_node)]
+        possible_paths_i_o_df = self.weighted_paths.loc[self.weighted_paths['path'].isin(possible_paths_i_o)]
+        path_list = []
+        path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmin()].replace('->', '')
+        return path_list
 
     def stream(self, connections: list[Connection], best='latency'):
+        connections_out = []
         if self.weighted_paths is None:
             print("The network it's not yet connected or doesn't exist")
             return
         for connection in connections:
-            # if the signal power of the connection it's different also the dataframe will have different values
-            # so in that case it's needed to redefine the dataframe
-            if connection.signal_power != self.signal_power:
-                self.set_weighted_paths(connection.signal_power)
+            # if the signal power of the connection it's different from the signal power of the network, it's
+            # necessary to set the dataframe of the system with the new signal power
+            # if connection.signal_power != self.signal_power:
+            #    self.set_weighted_paths(connection.signal_power)
+
+            if best == 'latency':
+                path = self.find_best_latency(connection.input_node, connection.output_node)
+            elif best == 'snr':
+                path = self.find_best_snr(connection.input_node, connection.output_node)
+            else:
+                print("Choice for Best Value dosen't exist")
+                return
+
+            signal = Signal_information(connection.signal_power, path)
+            signal = self.propagate(signal)
+            connection.latency = signal.latency
+            # snr formula -> 10*log(signal_power/noise_power)
+            connection.snr = 10*math.log10(signal.signal_power/signal.noise_power)
+            connections_out.append(connection)
+        return connections_out
 
     def print_nodes_info(self):
         for node_name in self._nodes:
@@ -166,4 +197,9 @@ class Network:
 if __name__ == '__main__':
     network = Network('../nodes.json')
     network.connect()
-    network.find_best_snr('A', 'C')
+    print(type(network.find_best_snr('A', 'C')))
+    print(network.find_best_latency('A', 'C'))
+    conn1 = Connection('A', 'C', 0.001)
+    conn2 = Connection('C', 'A', 0.001)
+
+    network.stream([conn1, conn2])

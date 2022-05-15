@@ -1,56 +1,38 @@
-from itertools import permutations
+import random
 
-import pandas as pd
-import math
+import matplotlib.pyplot as plt
 
+from LAB_2.lab_2.Connection import Connection
 from LAB_2.lab_2.Network import Network
-from LAB_2.lab_2.Signal_information import Signal_information
 
 
 def main():
     network = Network('../nodes.json')
     network.connect()
+    # network.draw()
+    # print(network.weighted_paths)
+    signal_power_connection = 0.001  # Watts
+    # first, create a list of 100 casual entries of connection
+    node_list = list(network.nodes.keys())
+    connections = []
+    for i in range(0, 100):
+        random_nodes = random.sample(node_list, 2)
+        connections.append(Connection(random_nodes[0], random_nodes[1], signal_power_connection))
 
-    # generating elements for the dataframe
-    paths_label = []
-    latencies = []
-    noises = []
-    snrs = []
-    df = pd.DataFrame()
+    connections_streamed = network.stream(connections, best='latency')
+    latency_array = [connection.latency for connection in connections_streamed]
+    plt.hist(latency_array)
+    plt.grid(True)
+    plt.title('Distribution of Latency along 100 Connections')
+    plt.show()
 
-    # generating all possible pair nodes
-    pairs = list(permutations(network.nodes.keys(), 2))
-    # pair -> AC
-    for pair in pairs:
-        #                           >> A <<   >> C <<
-        for path in network.find_path(pair[0], pair[1]):
-            path_label = ''
-            for node_name in path:
-                interline = ' ' if node_name == path[-1] else ' -> '
-                path_label += node_name + interline
+    connections_streamed = network.stream(connections, best='snr')
+    snr_array = [connection.snr for connection in connections_streamed]
+    plt.hist(snr_array)
+    plt.grid(True)
+    plt.title('Distribution of Snr along 100 Connections')
+    plt.show()
 
-            #  Propagation of the signal through the path
-            #
-            signal = Signal_information(0.001, path)
-            # propagation of the signal through network
-            signal = network.propagate(signal)
-            paths_label.append(path_label)
-            latencies.append(signal.latency)
-            noises.append(signal.noise_power)
-            snrs.append(10 * math.log10(signal.signal_power / signal.noise_power))
-
-    df['path'] = paths_label
-    df['latency'] = latencies
-    df['noise power'] = noises
-    df['snr'] = snrs
-
-    # this method will create or rewrite the specified file
-    with pd.ExcelWriter("../result.xlsx") as writer:
-        df.to_excel(writer)
-    print('Data is successfully written into Excel File')
-
-    # it has to be at the end because plt.show() stop the execution of the program
-    network.draw()
 
 
 if __name__ == '__main__':
