@@ -229,6 +229,7 @@ class Network(object):
             self.lines[line_label].state = 0
 
     def set_lines_state(self):
+        # this method will create and set a dataframe with paths and states of the lines, initially set to free
         if self.weighted_paths is None:
             return
         df = pd.DataFrame()
