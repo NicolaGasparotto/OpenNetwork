@@ -1,26 +1,35 @@
 import json
+
+# To do the math
 from itertools import permutations
 import math
+# To do a better drawing of the network graph
 import networkx as nx
+# Plots
 import matplotlib.pyplot as plt
+# Dataframe
 import pandas as pd
 
 from LAB_2.lab_2.Line import Line
 from LAB_2.lab_2.Node import Node
 from LAB_2.lab_2.Connection import Connection
-from LAB_1.lab1_package.Signal_information import Signal_information
 from LAB_2.lab_2.Signal_information import Signal_information
 
 
-class Network:
+class Network(object):
 
     def __init__(self, json_path):
         json_data = json.load(open(json_path, 'r'))
         self._nodes = {}
         self._lines = {}
+
         # the dataframe it's set when you call the function connect()
         # otherwise you can not create a dataframe or a network if you don't connect the nodes
         self._weighted_paths = None
+
+        # Dataframe that contains path and availability of the path/lines for the connection
+        self._lines_state = None
+
         # for default the signal power propagating along the network it's set to be
         # 0.001 Watts
         self._signal_power = 0.001
@@ -58,6 +67,14 @@ class Network:
     @signal_power.setter
     def signal_power(self, new_signal_power):
         self._signal_power = new_signal_power
+
+    @property
+    def lines_state(self):
+        return self._lines_state
+
+    @lines_state.setter
+    def lines_state(self, new_lines_state):
+        self._lines_state = new_lines_state
 
     # for default the signal_power is set to be 0.001 Watts
     def set_weighted_paths(self):
@@ -142,9 +159,10 @@ class Network:
         possible_paths_i_o = [path for path in self.weighted_paths['path'].tolist()
                               if (path[0] == input_node and path[-1] == output_node)]
         possible_paths_i_o_df = self.weighted_paths.loc[self.weighted_paths['path'].isin(possible_paths_i_o)]
-        path_list = []
-        path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmax()].replace('->', '')
-        return path_list
+        # path_list = []
+        # path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmax()].replace('->', '')
+        # return path_list
+        return possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmax()]
 
     def find_best_latency(self, input_node: str, output_node: str):
         if self.weighted_paths is None:
@@ -153,16 +171,18 @@ class Network:
         possible_paths_i_o = [path for path in self.weighted_paths['path'].tolist()
                               if (path[0] == input_node and path[-1] == output_node)]
         possible_paths_i_o_df = self.weighted_paths.loc[self.weighted_paths['path'].isin(possible_paths_i_o)]
-        path_list = []
-        path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmin()].replace('->', '')
-        return path_list
+        # path_list = []
+        # path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['latency'].idxmin()].replace('->', '')
+        # return path_list
+        return possible_paths_i_o_df['path'][possible_paths_i_o_df['latency'].idxmin()]
 
     def stream(self, connections: list[Connection], best='latency'):
         connections_out = []
-        path = []
         if self.weighted_paths is None:
             print("The network it's not yet connected or doesn't exist")
             return
+        if self._lines_state is None:
+            self.set_lines_state()
         for connection in connections:
             # if the signal power of the connection it's different from the signal power of the network, it's
             # necessary to set the dataframe of the system with the new signal power and so the entire network
@@ -171,6 +191,7 @@ class Network:
                 self.signal_power = connection.signal_power
                 self.set_weighted_paths()
 
+            # path is a string not a list of string, such as the attribute path in signal_information
             if best == 'latency':
                 path = self.find_best_latency(connection.input_node, connection.output_node)
             elif best == 'snr':
@@ -179,13 +200,42 @@ class Network:
                 print("Choice for Best Value do not exist")
                 return
 
-            signal = Signal_information(connection.signal_power, path)
-            signal = self.propagate(signal)
-            connection.latency = signal.latency
-            # snr formula -> 10*log(signal_power/noise_power)
-            connection.snr = 10*math.log10(signal.signal_power/signal.noise_power)
+            # when we have the free path the connection will occupy it so the path has to be set as occupied -> 0
+            # and so the lines in the path
+            self.update_line_state(path)
+
+            df = self.weighted_paths
+            # It will do a query on the dataframe to have the value of latency and snr
+            connection.latency = float(df.loc[df['path'] == path]['latency'])
+            connection.snr = float(df.loc[df['path'] == path]['snr'])
+
             connections_out.append(connection)
+
         return connections_out
+
+    def update_line_state(self, path):
+        # setting the state of the line in the dataframe as occupied
+        df_tmp = self.lines_state
+        #       >> this one is a mask that filter the string and return the indexes <<<<
+        df_tmp['state'][df_tmp['path'].str.contains('A->C')] = 0
+        self.lines_state = df_tmp
+
+        # setting the state of each line in the path as occupied
+        # remove the -> from the path
+        path = path[::3]
+        lines_list = [path[i]+path[i+1] for i in range(len(path)-1)]
+        # setting state of lines of the network as occupied
+        for line_label in lines_list:
+            self.lines[line_label].state = 0
+
+    def set_lines_state(self):
+        if self.weighted_paths is None:
+            return
+        df = pd.DataFrame()
+        df['path'] = self.weighted_paths['path']
+        states = [1 for _ in self.weighted_paths['path']]
+        df['state'] = states
+        self.lines_state = df
 
     def print_nodes_info(self):
         for node_name in self._nodes:
@@ -199,9 +249,26 @@ class Network:
 if __name__ == '__main__':
     network = Network('../nodes.json')
     network.connect()
+
+    """
+    network.set_lines_state()
+
+    df = network.lines_state
+    df['state'][df['path'].str.contains('A->C')] = 0
+    print(df)
+
+    string = 'ABCDEF'
+    lists = [string[i]+string[i+1] for i in range(len(string)-1)]
+    print(lists)
+    
     print(type(network.find_best_snr('A', 'C')))
     print(network.find_best_latency('A', 'C'))
+
+    snr = float(network.weighted_paths.loc[network.weighted_paths['path'] == 'A->B']['snr'])
+    snr += 100
+    print(snr)
+
     conn1 = Connection('A', 'C', 0.002)
     conn2 = Connection('C', 'A', 0.002)
-
-    [print(conn) for conn in network.stream([conn1, conn2])]
+    # [print(conn) for conn in network.stream([conn1, conn2])]
+    """
