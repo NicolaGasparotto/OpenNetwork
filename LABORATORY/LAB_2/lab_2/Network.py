@@ -146,6 +146,7 @@ class Network(object):
             visited_nodes[node_s] = False
 
         find_path_r(start_node, end_node, visited, path_nodes)
+        # I want the path from node_start to node_end sort by len
         list_path.sort(key=len)
         return list_path
 
@@ -153,27 +154,29 @@ class Network(object):
         return self.nodes[signal_information.path[0]].propagate(signal_information)
 
     def find_best_snr(self, input_node: str, output_node: str):
-        if self.weighted_paths is None:
-            self.connect()
         # possible_paths_i_o is a list with the possible path that connects node input to output
-        possible_paths_i_o = [path for path in self.weighted_paths['path'].tolist()
+        # in this way when it searches, it will do it directly on the database of available path
+        # in the update method when a line it's occupied it will be removed from the database
+        possible_paths_i_o = [path for path in self.lines_state['path'].tolist()
                               if (path[0] == input_node and path[-1] == output_node)]
+        # if the list of possible path is empty it means that there are no free path
+        if not possible_paths_i_o:
+            return None
+
         possible_paths_i_o_df = self.weighted_paths.loc[self.weighted_paths['path'].isin(possible_paths_i_o)]
-        # path_list = []
-        # path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmax()].replace('->', '')
-        # return path_list
+
         return possible_paths_i_o_df['path'][possible_paths_i_o_df['snr'].idxmax()]
 
     def find_best_latency(self, input_node: str, output_node: str):
-        if self.weighted_paths is None:
-            self.connect()
         # possible_paths_i_o is a list with the possible path that connects node input to output
-        possible_paths_i_o = [path for path in self.weighted_paths['path'].tolist()
+        possible_paths_i_o = [path for path in self.lines_state['path'].tolist()
                               if (path[0] == input_node and path[-1] == output_node)]
+        # if the list of possible path is empty it means that there are no free path
+        if not possible_paths_i_o:
+            return None
+
         possible_paths_i_o_df = self.weighted_paths.loc[self.weighted_paths['path'].isin(possible_paths_i_o)]
-        # path_list = []
-        # path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['latency'].idxmin()].replace('->', '')
-        # return path_list
+
         return possible_paths_i_o_df['path'][possible_paths_i_o_df['latency'].idxmin()]
 
     def stream(self, connections: list[Connection], best='latency'):
@@ -192,6 +195,7 @@ class Network(object):
                 self.set_weighted_paths()
 
             # path is a string not a list of string, such as the attribute path in signal_information
+            # i.e: path = 'A->B->C'
             if best == 'latency':
                 path = self.find_best_latency(connection.input_node, connection.output_node)
             elif best == 'snr':
@@ -200,30 +204,37 @@ class Network(object):
                 print("Choice for Best Value do not exist")
                 return
 
-            # when we have the free path the connection will occupy it so the path has to be set as occupied -> 0
-            # and so the lines in the path
-            self.update_line_state(path)
+            if path is not None:
+                # print(path)
+                # when we have the free path the connection will occupy it, then the path has to be set as occupied -> 0 (in this case)
+                # the path will be removed from the database lines_state but the lines in the path will be set as occupied
+                self.update_line_state(path)
 
-            df = self.weighted_paths
-            # It will do a query on the dataframe to have the value of latency and snr
-            connection.latency = float(df.loc[df['path'] == path]['latency'])
-            connection.snr = float(df.loc[df['path'] == path]['snr'])
+                df = self.weighted_paths
+                # It will do a query on the dataframe to have the value of latency and snr
+                connection.latency = float(df.loc[df['path'] == path]['latency'])
+                connection.snr = float(df.loc[df['path'] == path]['snr'])
+
+            else:
+                connection.latency = None
+                connection.snr = 0
 
             connections_out.append(connection)
-
         return connections_out
 
     def update_line_state(self, path):
         # setting the state of the line in the dataframe as occupied
         df_tmp = self.lines_state
         #       >> this one is a mask that filter the string and return the indexes <<<<
-        df_tmp['state'][df_tmp['path'].str.contains('A->C')] = 0
-        self.lines_state = df_tmp
+        # df_tmp['state'][df_tmp['path'].str.contains('A->C')] = 0
+
+        # With this method it will drop the occupied lines in the database
+        self.lines_state = df_tmp.loc[df_tmp['path'].str.contains(path) == False]
 
         # setting the state of each line in the path as occupied
         # remove the -> from the path
         path = path[::3]
-        lines_list = [path[i]+path[i+1] for i in range(len(path)-1)]
+        lines_list = [path[i] + path[i + 1] for i in range(len(path) - 1)]
         # setting state of lines of the network as occupied
         for line_label in lines_list:
             self.lines[line_label].state = 0
@@ -251,7 +262,16 @@ if __name__ == '__main__':
     network = Network('../nodes.json')
     network.connect()
 
+    list_conn = [Connection('A', 'C', 0.001) for _ in range(13)]
+
+    [print(conn) for conn in network.stream(list_conn)]
+
     """
+    network.set_lines_state()
+    df = network.lines_state
+    df = df.loc[df['path'].str.contains('A->B') == False]
+    print(df)
+    
     network.set_lines_state()
 
     df = network.lines_state
@@ -268,6 +288,10 @@ if __name__ == '__main__':
     snr = float(network.weighted_paths.loc[network.weighted_paths['path'] == 'A->B']['snr'])
     snr += 100
     print(snr)
+
+    # path_list = []
+    # path_list[:0] = possible_paths_i_o_df['path'][possible_paths_i_o_df['latency'].idxmin()].replace('->', '')
+    # return path_list
 
     conn1 = Connection('A', 'C', 0.002)
     conn2 = Connection('C', 'A', 0.002)

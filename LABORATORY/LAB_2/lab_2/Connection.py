@@ -50,4 +50,5 @@ class Connection(object):
         self._snr = new_snr
 
     def __str__(self):
-        return f"Connection\nInput Node:{self._input_node}\tOutput Node:{self._output_node}\nSignal Power: {self.signal_power}\n "
+        return f"Connection\nInput Node:{self._input_node}\tOutput Node:{self._output_node}\nSignal Power: {self.signal_power}\n" \
+               f"Snr: {self.snr}\nLatency: {self.latency}\n"
