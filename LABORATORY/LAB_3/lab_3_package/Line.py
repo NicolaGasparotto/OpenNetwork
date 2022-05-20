@@ -1,24 +1,24 @@
-from LAB_2.lab_2.Node import *
+from LAB_3.lab_3_package.Node import *
 
 
 class Line(object):
 
     # i.e:
     # line_label = AC, length = 12.5
-    def __init__(self, label: str, length: float):
+    def __init__(self, label: str, length: float, channels_number: int):
         self._length = length
         self._label = label
         self._successive = {}  # dict_ node
-        self._state = 1  # 1 means 'free', 0 means 'occupied'
-    
+        self._state = [1]*channels_number  # 1 means 'free', 0 means 'occupied'
+
     @property
     def state(self):
         return self._state
-    
+
     @state.setter
     def state(self, new_state):
         self._state = new_state
-    
+
     @property
     def length(self):
         return self._length
@@ -51,13 +51,17 @@ class Line(object):
         # print(type(signal_power), signal_power)
         return signal_power * self.length * (10 ** -9)
 
-    def propagate(self, signal_i: Signal_information):
+    def probe(self, signal_i: Signal_information):
         signal_i.add_latency(self.latency_generation())
         signal_i.add_noise_power(self.noise_generation(signal_i.signal_power))
-        # it will recall the method propagate for the next node
-        signal_i = self.successive[signal_i.path[0]].propagate(signal_i)
+        # it will recall the method probe for the next node
+        signal_i = self.successive[signal_i.path[0]].probe(signal_i)
         return signal_i
 
     def __str__(self):
         return f"Node line: {self.label}\nLength: {self.length}\nState (1->Free, 0->Occupied): {self.state}\n"
 
+
+if __name__ == '__main__':
+    line = Line('AC', 12.3, 5)
+    print(line)
