@@ -262,11 +262,12 @@ if __name__ == '__main__':
     network = Network('../nodes.json')
     network.connect()
 
+    """
     list_conn = [Connection('A', 'C', 0.001) for _ in range(13)]
 
     [print(conn) for conn in network.stream(list_conn)]
 
-    """
+    
     network.set_lines_state()
     df = network.lines_state
     df = df.loc[df['path'].str.contains('A->B') == False]
