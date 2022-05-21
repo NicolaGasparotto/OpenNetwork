@@ -29,18 +29,6 @@ def main():
     plt.title('Distribution of Latency along 100 Connections')
     plt.show()
 
-    # OBSERVATION: !!!
-    # After a series of connections is streamed the database of state lines has to be reset free
-    network.set_lines_state()  # this function set all the line as free
-    del connections_streamed
-    connections_streamed = network.stream(connections, best='snr')
-    snr_array = [connection.snr for connection in connections_streamed]
-    # print(snr_array)
-    plt.hist(snr_array)
-    plt.grid(True)
-    plt.title('Distribution of Snr along 100 Connections')
-    plt.show()
-
 
 if __name__ == '__main__':
     main()

@@ -58,6 +58,15 @@ class Line(object):
         signal_i = self.successive[signal_i.path[0]].probe(signal_i)
         return signal_i
 
+    def update_state(self):
+        # update the state of the channel in the list of available channels
+        # the first free channel found will be changed and the function will stop
+        # there is no control for the condition when all the channels are occupied
+        for i, ch in enumerate(self.state):
+            if ch:
+                self.state[i] = 0
+                return
+
     def __str__(self):
         return f"Node line: {self.label}\nLength: {self.length}\nState (1->Free, 0->Occupied): {self.state}\n"
 

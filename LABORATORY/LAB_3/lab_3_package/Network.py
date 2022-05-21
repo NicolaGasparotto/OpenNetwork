@@ -29,10 +29,12 @@ class Network(object):
 
         # Dataframe that contains path and availability of the channels for the connection
         self._route_space = None
+        # it's the same dataframe but when a connection occupies a channel the path and so the channel will be removed
         self._route_space_without_occupied_channels = None
         # for default the signal power propagating along the network it's set to be
         # 0.001 Watts
         self._signal_power = 0.001
+
         # definition of nodes and lines
         for node_name in json_data:
             node_i_dict = json_data[node_name]
@@ -175,7 +177,7 @@ class Network(object):
         # possible_paths_i_o is a list with the possible path that connects node input to output
         # in this way when it searches, it will do it directly on the database of available path
         # in the update method when a line it's occupied it will be removed from the database
-        possible_paths_i_o = [path for path in self.route_space['path'].tolist()
+        possible_paths_i_o = [path for path in self.route_space_without_occupied_channels['path'].tolist()
                               if (path[0] == input_node and path[-1] == output_node)]
         # if the list of possible path is empty it means that there are no free path
         if not possible_paths_i_o:
@@ -187,7 +189,7 @@ class Network(object):
 
     def find_best_latency(self, input_node: str, output_node: str):
         # possible_paths_i_o is a list with the possible path that connects node input to output
-        possible_paths_i_o = [path for path in self.route_space['path'].tolist()
+        possible_paths_i_o = [path for path in self.route_space_without_occupied_channels['path'].tolist()
                               if (path[0] == input_node and path[-1] == output_node)]
         # if the list of possible path is empty it means that there are no free path
         if not possible_paths_i_o:
@@ -226,7 +228,7 @@ class Network(object):
                 # print(path)
                 # when we have the free path the connection will occupy it, then the path has to be set as occupied -> 0 (in this case)
                 # the path will be removed from the database route_space but the lines in the path will be set as occupied
-                self.update_line_state(path)
+                self.update_path_channels(path)
 
                 df = self.weighted_paths
                 # It will do a query on the dataframe to have the value of latency and snr
@@ -240,23 +242,30 @@ class Network(object):
             connections_out.append(connection)
         return connections_out
 
-    def update_line_state(self, path):
-        # setting the state of the line in the dataframe as occupied
-        df_tmp = self.route_space_without_occupied_channels
-        #       >> this one is a mask that filter the string and return the indexes <<<<
-        # df_tmp['state'][df_tmp['path'].str.contains('A->C')] = 0
+    def update_path_channels(self, path):
+        df_tmp = self.route_space
+        selected_path = df_tmp.loc[(df_tmp['path'].str.contains(path)) & (df_tmp['channel state'] != 0)]  # a dataframe with indexes and path
 
-        # With this method it will drop the occupied lines in the database
-        # self.route_space_without_occupied_channels = # df_tmp.loc[df_tmp['path'].str.contains(path) == False]
-        #it need to be redefined
+        UPDATED = 0
+        indexes = []
+        # independently of the numeric index with iat[0] you get the first row absolutely
+        start = selected_path['path'].iat[0]
+        for i in selected_path.index:
+            if selected_path.at[i, 'path'] == start:
+                if not UPDATED:
+                    UPDATED = 1
+                    indexes.append(i)
+            else:
+                start = selected_path.at[i, 'path']
+                indexes.append(i)
+
+        self.route_space.loc[indexes, 'channel state'] = 0
+        self.route_space_without_occupied_channels = self.route_space_without_occupied_channels.drop(indexes)
 
         # setting the state of each line in the path as occupied
-        # remove the -> from the path
-        path = path[::3]
-        lines_list = [path[i] + path[i + 1] for i in range(len(path) - 1)]
-        # setting state of lines of the network as occupied
-        for line_label in lines_list:
-            self.lines[line_label].state[] = 0
+        path = path[::3]  # removing the -> from the path
+        lines_list = [path[i] + path[i + 1] for i in range(len(path) - 1)]  # this will return a list of each line in the given path
+        [self.lines[line_name].update_state() for line_name in lines_list]  # setting the channel of each lines of the network as occupied
 
     def set_route_space(self):
         # this method will create and set a dataframe with paths and states of the lines, initially set to free
@@ -264,14 +273,8 @@ class Network(object):
             return
         df = pd.DataFrame()
         df['path'] = self.weighted_paths['path']
-
-        # this one has to be modified because it has to have a number of same path for each channel
-        # i.e:
-        # A->B 1 # means channel 0 is free
-        # A->B 0 # means channel 1 is occupied
-        # and so on...
-        # states = [1 for _ in self.weighted_paths['path']]
-        # df['state'] = states
+        df = df.loc[df.index.repeat(self.channels_number)].reset_index(drop=True)  # without the drop=Ture it will maintain also the old indexes
+        df['channel state'] = 1  # setting all the channel as free -> value 1
         self.route_space = df
         self.route_space_without_occupied_channels = df.copy()  # this copy will be modified removing the occupied channels
 
@@ -287,4 +290,51 @@ class Network(object):
 if __name__ == '__main__':
     network = Network('../nodes.json')
     network.connect()
-    # network.draw()
+
+    """
+    # Fun fact, the net support around 120 connection for each repeated node in node out 
+    out = []
+    for _ in range(120):
+        conn = Connection('A', 'B', 0.001)
+        o = network.stream([conn])
+        out.append(o)
+    print(network.route_space_without_occupied_channels)
+    [print(o) for i in out for o in i]
+    
+    # print(network.route_space)
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    network.update_path_channels('A->B')
+    # print(network.route_space.loc[network.route_space['channel state'] == 0])
+    with pd.ExcelWriter("../route_space_without.xlsx") as writer:
+        network.route_space_without_occupied_channels.to_excel(writer)
+    with pd.ExcelWriter("../route_space.xlsx") as writer:
+        network.route_space.to_excel(writer)
+    
+    df_tmp = network.route_space
+    # ['path'].tolist()
+    selected_path = df_tmp.loc[df_tmp['path'].str.contains('A->C')]
+    print(selected_path)
+
+    UPDATED = 0
+    indexes = []
+    start = selected_path['path'].iat[0]  # independently of the numeric index with iat[0] you get the first row absolutely
+    for i in selected_path.index:
+        if selected_path.at[i, 'path'] == start:
+            if not UPDATED:
+                UPDATED = 1
+                indexes.append(i)
+        else:
+            start = selected_path.at[i, 'path']
+            indexes.append(i)
+    #df_tmp.loc[indexes, 'channel state'] = 0
+    df_tmp = df_tmp.drop(indexes)
+    print(df_tmp)
+    """
