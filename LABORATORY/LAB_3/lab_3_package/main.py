@@ -9,8 +9,7 @@ from LAB_3.lab_3_package.Network import Network
 def main():
     network = Network('../nodes.json')
     network.connect()
-    # network.draw()
-    # print(network.weighted_paths)
+
     signal_power_connection = 0.001  # Watts
     # first, create a list of 100 casual entries of connection
     node_list = list(network.nodes.keys())
@@ -19,14 +18,22 @@ def main():
         random_nodes = random.sample(node_list, 2)  # this function create the random input nodes
         connections.append(Connection(random_nodes[0], random_nodes[1], signal_power_connection))
 
+    # LATENCY DISTRIBUTION
     connections_streamed = network.stream(connections, best='latency')
-    # [print(conn) for conn in connections_streamed]
     latency_array = [connection.latency if connection.latency is not None else 0 for connection in connections_streamed]
-    # [0 if val is None else val for val in latency_array]
-    # print(latency_array)
     plt.hist(latency_array)
     plt.grid(True)
     plt.title('Distribution of Latency along 100 Connections')
+    plt.show()
+
+    # SNR DISTRIBUTION
+    del connections_streamed
+    network.set_route_space()
+    connections_streamed = network.stream(connections, best='snr')
+    snr_array = [connection.snr for connection in connections_streamed]
+    plt.hist(snr_array)
+    plt.grid(True)
+    plt.title('Distribution of SNR along 100 Connections')
     plt.show()
 
 

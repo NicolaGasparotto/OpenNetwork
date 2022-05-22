@@ -243,20 +243,20 @@ class Network(object):
         return connections_out
 
     def update_path_channels(self, path):
-        df_tmp = self.route_space
-        selected_path = df_tmp.loc[(df_tmp['path'].str.contains(path)) & (df_tmp['channel state'] != 0)]  # a dataframe with indexes and path
+        df_tmp = self.route_space_without_occupied_channels
+        selected_path = df_tmp.loc[df_tmp['path'].str.contains(path), 'path']  # a dataframe with indexes and path
 
         UPDATED = 0
         indexes = []
         # independently of the numeric index with iat[0] you get the first row absolutely
-        start = selected_path['path'].iat[0]
+        start = selected_path.iat[0]
         for i in selected_path.index:
-            if selected_path.at[i, 'path'] == start:
+            if selected_path.at[i] == start:
                 if not UPDATED:
                     UPDATED = 1
                     indexes.append(i)
             else:
-                start = selected_path.at[i, 'path']
+                start = selected_path.at[i]
                 indexes.append(i)
 
         self.route_space.loc[indexes, 'channel state'] = 0
@@ -294,13 +294,18 @@ if __name__ == '__main__':
     """
     # Fun fact, the net support around 120 connection for each repeated node in node out 
     out = []
-    for _ in range(120):
+    for _ in range(122):
         conn = Connection('A', 'B', 0.001)
         o = network.stream([conn])
         out.append(o)
     print(network.route_space_without_occupied_channels)
     [print(o) for i in out for o in i]
-    
+
+    with pd.ExcelWriter("../route_space_without.xlsx") as writer:
+        network.route_space_without_occupied_channels.to_excel(writer)
+    with pd.ExcelWriter("../route_space.xlsx") as writer:
+        network.route_space.to_excel(writer)
+
     # print(network.route_space)
     network.update_path_channels('A->B')
     network.update_path_channels('A->B')
