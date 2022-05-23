@@ -135,7 +135,7 @@ if __name__ == "__main__":
     network1.print_lines_info()
 
     
-    jsondata = json.load(open('./nodes.json', 'r'))
+    jsondata = json.load(open('./nodes_shannon_transceiver.json', 'r'))
     print(type(jsondata))
     print(type(jsondata['A']['connected_nodes']))
     

@@ -3,6 +3,8 @@ import json
 # To do the math
 from itertools import permutations
 import math
+from scipy.special import erfcinv
+
 # To do a better drawing of the network graph
 import networkx as nx
 # Plots
@@ -15,6 +17,8 @@ from LAB_4.lab_4_package.Line import Line
 from LAB_4.lab_4_package.Node import Node
 from LAB_4.lab_4_package.Connection import Connection
 from LAB_4.lab_4_package.Signal_information import Signal_information
+
+TRANSCEIVERS_VARIABLES = {'BERt': 10e-3, 'Rs': 32e9, 'Bn': 12.5e9}
 
 
 class Network(object):
@@ -74,11 +78,11 @@ class Network(object):
     @property
     def channels_number(self):
         return self._channels_number
-    
+
     @channels_number.setter
     def channels_number(self, new_channels_number):
         self._channels_number = new_channels_number
-    
+
     @property
     def route_space(self):
         return self._route_space
@@ -233,6 +237,7 @@ class Network(object):
             if path is None:
                 reject_connection(connection)
             else:
+                # the path exist, the bit_rate will be calculated with the transceiver of the first node of the given path
                 bit_rate = self.calculate_bit_rate(path, self.nodes[path[0]].transceiver)
                 if bit_rate:
                     # when we have the free path the connection will occupy it, then the path has to be set as occupied -> 0 (in this case)
@@ -242,23 +247,12 @@ class Network(object):
                     # It will do a query on the dataframe to have the value of latency and snr
                     connection.latency = float(df.loc[df['path'] == path]['latency'])
                     connection.snr = float(df.loc[df['path'] == path]['snr'])
+                    connection.bit_rate = bit_rate
                 else:
                     reject_connection(connection)
 
             connections_out.append(connection)
         return connections_out
-
-    def calculate_bit_rate(self, path, strategy: str):
-        bit_rate = 0
-        if strategy == 'fixed-rate':
-            bit_rate = 0
-        elif strategy == 'flex-rate':
-            bit_rate = 0
-        elif strategy == 'shannon':
-            bit_rate = 0
-        else:
-            print("Error: it's not possible not having a transceiver not defined")
-        return bit_rate
 
     def update_path_channels(self, path):
         df_tmp = self.route_space_without_occupied_channels
@@ -282,8 +276,10 @@ class Network(object):
 
         # setting the state of each line in the path as occupied
         path = path[::3]  # removing the -> from the path
-        lines_list = [path[i] + path[i + 1] for i in range(len(path) - 1)]  # this will return a list of each line in the given path
-        [self.lines[line_name].update_state() for line_name in lines_list]  # setting the channel of each lines of the network as occupied
+        lines_list = [path[i] + path[i + 1] for i in
+                      range(len(path) - 1)]  # this will return a list of each line in the given path
+        [self.lines[line_name].update_state() for line_name in
+         lines_list]  # setting the channel of each lines of the network as occupied
 
     def set_route_space(self):
         # this method will create and set a dataframe with paths and states of the lines, initially set to free
@@ -291,10 +287,38 @@ class Network(object):
             return
         df = pd.DataFrame()
         df['path'] = self.weighted_paths['path']
-        df = df.loc[df.index.repeat(self.channels_number)].reset_index(drop=True)  # without the drop=Ture it will maintain also the old indexes
+        df = df.loc[df.index.repeat(self.channels_number)].reset_index(
+            drop=True)  # without the drop=Ture it will maintain also the old indexes
         df['channel state'] = 1  # setting all the channel as free -> value 1
         self.route_space = df
         self.route_space_without_occupied_channels = df.copy()  # this copy will be modified removing the occupied channels
+
+    def calculate_bit_rate(self, path, strategy: str):
+        # if is wanted the number expressed in bits per second uncomment this line
+        # Gbps = 1e9  # 1 gbps = 1e9 bits per second
+        Gbps = 1
+        Bn = TRANSCEIVERS_VARIABLES['Bn']
+        Rs = TRANSCEIVERS_VARIABLES['Rs']
+        BERt = TRANSCEIVERS_VARIABLES['BERt']
+        Gsnr = float(self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr'])
+        RB = (Rs/Bn)
+        if strategy == 'fixed-rate':
+            bit_rate = 100*Gbps if Gsnr >= (2*(erfcinv(2*BERt)**2)*RB) else 0
+        elif strategy == 'flex-rate':
+            if Gsnr < 2*(erfcinv(2*BERt)**2)*RB:
+                bit_rate = 0
+            elif Gsnr < (14/3)*(erfcinv(1.5*BERt)**2)*RB:
+                bit_rate = 100*Gbps
+            elif Gsnr < 10*(erfcinv((8/3)*BERt)**2)*RB:
+                bit_rate = 200*Gbps
+            else:
+                bit_rate = 400*Gbps
+        elif strategy == 'shannon':
+            bit_rate = 2*Rs*math.log2(1 + Gsnr*RB)*Gbps/1e9
+        else:
+            print("Error: it's not possible not having a transceiver not defined")
+            return
+        return bit_rate
 
     def print_nodes_info(self):
         for node_name in self._nodes:
@@ -306,8 +330,17 @@ class Network(object):
 
 
 if __name__ == '__main__':
-    network = Network('../nodes.json')
+    network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
+    # network.print_nodes_info()
+
+    out = []
+    for _ in range(3):
+        conn = Connection('A', 'F', 0.001)
+        o = network.stream([conn])
+        out.append(o)
+    #print(network.route_space_without_occupied_channels)
+    [print(o) for i in out for o in i]
 
     """
     # Fun fact, the net support around 120 connection for each repeated node in node out 
