@@ -333,7 +333,9 @@ if __name__ == '__main__':
     network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
     # network.print_nodes_info()
+    network.draw()
 
+    """
     out = []
     for _ in range(3):
         conn = Connection('A', 'F', 0.001)
@@ -342,7 +344,7 @@ if __name__ == '__main__':
     #print(network.route_space_without_occupied_channels)
     [print(o) for i in out for o in i]
 
-    """
+    
     # Fun fact, the net support around 120 connection for each repeated node in node out 
     out = []
     for _ in range(122):
