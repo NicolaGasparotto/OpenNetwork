@@ -8,7 +8,7 @@ from LAB_5.lab_5_package.Network import Network
 
 
 def main():
-    connections_number = 150
+    connections_number = 100
     network = Network('../nodes.json')
     network.connect()
 

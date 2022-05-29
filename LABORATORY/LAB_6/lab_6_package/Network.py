@@ -252,7 +252,6 @@ class Network(object):
                     connection.latency = float(df.loc[df['path'] == path]['latency'])
                     connection.snr = float(df.loc[df['path'] == path]['snr'])
                     connection.bit_rate = bit_rate
-                    print(path)
                 else:
                     reject_connection(connection)
 
@@ -292,7 +291,7 @@ class Network(object):
         Bn = TRANSCEIVERS_VARIABLES['Bn']
         Rs = TRANSCEIVERS_VARIABLES['Rs']
         BERt = TRANSCEIVERS_VARIABLES['BERt']
-        Gsnr = float(self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr'])
+        Gsnr = 10**(float(self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr'])/10)  # gsnr in linear unit
         RB = (Rs/Bn)
         if strategy == 'fixed-rate':
             bit_rate = 100*Gbps if Gsnr >= (2*(erfcinv(2*BERt)**2)*RB) else 0
@@ -327,7 +326,7 @@ if __name__ == '__main__':
     # network.draw()
     # network.update_path_channels('A->B->D->C', 2)
     # network.print_nodes_info()
-
+    """
     out = []
     for _ in range(20):
         conn = Connection('A', 'F', 0.001)
@@ -341,7 +340,7 @@ if __name__ == '__main__':
 
     lines_list = [line for line in network.lines]
     matrix_state = np.array([network.lines[line].state for line in lines_list])
-    print(lines_list, '\n', matrix_state)
+    # print(lines_list, "\n", matrix_state)
     # print(len(out))
     # [print(o) for i in out for o in i]
 
@@ -350,7 +349,7 @@ if __name__ == '__main__':
     with pd.ExcelWriter("../route_space.xlsx") as writer:
         network.route_space.to_excel(writer)
 
-    """
+    
     # Fun fact, the net support around 120 connection for each repeated node in node out 
     out = []
     for _ in range(122):
