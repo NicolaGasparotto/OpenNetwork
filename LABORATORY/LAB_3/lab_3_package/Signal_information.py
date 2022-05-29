@@ -1,7 +1,6 @@
-
 class Signal_information(object):
 
-    def __init__(self, signal_power: float, path: list[str]):
+    def __init__(self, signal_power, path):
         self._signal_power = signal_power
         self._path = path
         self._noise_power = 0
@@ -49,4 +48,4 @@ class Signal_information(object):
         del self._path[0]
 
     def __str__(self):
-        return f"SIGNAL:\nPath: {self.path}\nSignal Power: {self.signal_power}\nNoise Power: {self.noise_power}\nLatency: {self.latency}\n"
+        return f"SIGNAL:\nPath: {self.path}\nSignal Power: {self.signal_power}\nNoise Power: {self.noise_power}\nLatency: {self.latency} "

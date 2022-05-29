@@ -8,7 +8,6 @@ class Connection(object):
         self._signal_power = signal_power
         self._latency = 0
         self._snr = 0
-        self.bit_rate = None
 
     @property
     def input_node(self):
@@ -50,14 +49,6 @@ class Connection(object):
     def snr(self, new_snr):
         self._snr = new_snr
 
-    @property
-    def bit_rate(self):
-        return self._bit_rate
-
-    @bit_rate.setter
-    def bit_rate(self, new_bit_rate):
-        self._bit_rate = new_bit_rate
-
     def __str__(self):
         return f"Connection\nInput Node:{self._input_node}\tOutput Node:{self._output_node}\nSignal Power: {self.signal_power}\n" \
-               f"Snr: {self.snr}\nLatency: {self.latency}\nBit Rate: {self.bit_rate} Gbps\n"
+               f"Snr: {self.snr}\nLatency: {self.latency}\n"

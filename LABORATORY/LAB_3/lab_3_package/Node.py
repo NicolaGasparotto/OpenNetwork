@@ -43,14 +43,19 @@ class Node(object):
     def successive(self, successive):
         self._successive = successive
 
-    def probe(self, signal_information_i):
+    def propagate(self, signal_information_i):
         path = signal_information_i.path
         if len(path) > 1:
             line_name = path[0] + path[1]  # this return the string node_0 + node_1 -> ex: AB
             signal_information_i.update_path()
-            signal_information_i = self.successive[line_name].probe(signal_information_i)
+            signal_information_i = self.successive[line_name].propagate(signal_information_i)
         return signal_information_i
 
     def __str__(self):
         return f"Node: {self.label}\nConnected Nodes: {self.connected_nodes}\nNode position: {self.position}\n"
 
+
+if __name__ == "__main__":
+    node_dict = {'label': 'A', 'connected_nodes': ['B', 'C', 'D'], 'position': (12.1, 7.8)}
+    nodo1 = Node(node_dict)
+    print(nodo1)

@@ -1,10 +1,7 @@
-from math import ceil
-
 from LAB_5.lab_5_package.Node import *
 
 
 class Line(object):
-    DISTANCE_AMPLIFIER = 80  # one amplifier every 80 km
 
     # i.e:
     # line_label = AC, length = 12.5
@@ -13,33 +10,6 @@ class Line(object):
         self._label = label
         self._successive = {}  # dict_ node
         self._state = [1]*channels_number  # 1 means 'free', 0 means 'occupied'
-        self._n_amplifiers = ceil(self.length/self.DISTANCE_AMPLIFIER) + 1  # at the end of each line there will be another amplifier
-        self._gain = 16  # in dB units
-        self._noise_figure = 3  # in dB units
-
-    @property
-    def noise_figure(self):
-        return self._noise_figure
-
-    @noise_figure.setter
-    def noise_figure(self, new_noise_figure):
-        self._noise_figure = new_noise_figure
-
-    @property
-    def gain(self):
-        return self._gain
-
-    @gain.setter
-    def gain(self, new_gain):
-        self._gain = new_gain
-
-    @property
-    def n_amplifiers(self):
-        return self._n_amplifiers
-
-    @n_amplifiers.setter
-    def n_amplifiers(self, new_n_amplifiers):
-        self._n_amplifiers = new_n_amplifiers
 
     @property
     def state(self):
@@ -96,13 +66,6 @@ class Line(object):
             if ch:
                 self.state[i] = 0
                 return
-
-    def ase_generation(self):
-        pass
-
-    def nli_generation(self):
-
-        return  # value in linear units
 
     def __str__(self):
         return f"Node line: {self.label}\nLength: {self.length}\nState (1->Free, 0->Occupied): {self.state}\n"
