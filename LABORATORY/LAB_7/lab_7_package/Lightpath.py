@@ -3,20 +3,20 @@ from LAB_7.lab_7_package.Signal_information import Signal_information
 
 class Lightpath(Signal_information):
 
-    def __init__(self, signal_power: float, path: list[str], channel: int):
+    def __init__(self, signal_power: float, path: list[str], channel_slot: int):
         super().__init__(signal_power, path)
-        self._channel = channel
+        self._channel_slot = channel_slot
 
     @property
-    def channel(self):
-        return self._channel
+    def channel_slot(self):
+        return self._channel_slot
 
-    @channel.setter
-    def channel(self, new_channel):
-        self._channel = new_channel
+    @channel_slot.setter
+    def channel_slot(self, new_channel_slot):
+        self._channel_slot = new_channel_slot
 
     def __str__(self):
-        return super().__str__() + f"Channel Slot: {self.channel}\n"
+        return super().__str__() + f"Channel Slot: {self.channel_slot}\n"
 
 
 if __name__ == '__main__':

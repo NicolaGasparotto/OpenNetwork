@@ -1,4 +1,3 @@
-from LAB_7.lab_7_package.Lightpath import Lightpath
 from LAB_7.lab_7_package.Signal_information import Signal_information
 from LAB_7.lab_7_package.Line import *
 
@@ -65,14 +64,6 @@ class Node(object):
     def __str__(self):
         return f"Node: {self.label}\nConnected Nodes: {self.connected_nodes}\nNode position: {self.position}\n" \
                f"Transceiver: {self.transceiver}\n"
-
-    def propagate(self, lightpath: Lightpath):
-        path = lightpath.path
-        if len(path) > 1:
-            line_name = path[0] + path[1]  # this return the string node_0 + node_1 -> ex: AB
-            lightpath.update_path()  # this remove from the path A
-            lightpath = self.successive[line_name].propagate(lightpath)
-        return lightpath
 
 
 if __name__ == '__main__':

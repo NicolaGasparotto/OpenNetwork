@@ -46,7 +46,7 @@ class Signal_information(object):
         self.noise_power += more_noise_power
 
     def update_path(self):
-        del self._path[0]  # it's a list of char representing the path of the signal
+        del self._path[0]
 
     def __str__(self):
         return f"SIGNAL:\nPath: {self.path}\nSignal Power: {self.signal_power}\nNoise Power: {self.noise_power}\nLatency: {self.latency}\n"

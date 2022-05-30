@@ -3,8 +3,9 @@ import json
 # To do the math
 from itertools import permutations
 import math
-from scipy.special import erfcinv
+
 import numpy as np
+from scipy.special import erfcinv
 
 # To do a better drawing of the network graph
 import networkx as nx
@@ -14,13 +15,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # Classes of the Network
-from LAB_7.lab_7_package.Lightpath import Lightpath
 from LAB_7.lab_7_package.Line import Line
 from LAB_7.lab_7_package.Node import Node
 from LAB_7.lab_7_package.Connection import Connection
 from LAB_7.lab_7_package.Signal_information import Signal_information
 
-TRANSCEIVERS_VARIABLES = {'BERt': 1e-3, 'Rs': 32e9, 'Bn': 12.5e9}
+from constants import CONSTANTS
 
 
 class Network(object):
@@ -101,6 +101,15 @@ class Network(object):
     def route_space_without_occupied_channels(self, new_route_space_without_occupied_channels):
         self._route_space_without_occupied_channels = new_route_space_without_occupied_channels
 
+    def connect(self):
+        for node_name in self.nodes:
+            for connected_node in self.nodes[node_name].connected_nodes:
+                line_name = node_name + connected_node
+                self.nodes[node_name].successive[line_name] = self.lines[line_name]
+                self.lines[line_name].successive[connected_node] = self.nodes[connected_node]
+        self.set_weighted_paths()
+        self.set_route_space()
+
     # for default the signal_power is set to be 0.001 Watts
     def set_weighted_paths(self):
         paths_label = []
@@ -127,27 +136,20 @@ class Network(object):
         df['snr'] = snrs
         self.weighted_paths = df
 
-    def draw(self):
-        G = nx.Graph()
-        G.add_nodes_from(list(self.nodes.keys()))
-        G.add_edges_from(list(self.lines.keys()))
-        pos = {}
-        for node in self.nodes:
-            pos[node] = self.nodes[node].position
-        fig, ax = plt.subplots()
-        nx.draw_networkx(G, pos=pos, ax=ax, edge_color='dodgerblue', node_color='darkseagreen', width=3.0)
-        ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
-        plt.title('Network')
-        plt.show()
+    def set_route_space(self):
+        # this method will create and set a dataframe with paths and states of the lines, initially set to free
+        if self.weighted_paths is None:
+            return
+        df = pd.DataFrame()
+        df['path'] = self.weighted_paths['path']
+        df = df.loc[df.index.repeat(self.channels_number)].reset_index(
+            drop=True)  # without the drop=Ture it will maintain also the old indexes
+        df['channel_state'] = 1  # setting all the channel as free -> value 1
+        self.route_space = df
+        self.route_space_without_occupied_channels = df.copy()  # this copy will be modified removing the occupied channels
 
-    def connect(self):
-        for node_name in self.nodes:
-            for connected_node in self.nodes[node_name].connected_nodes:
-                line_name = node_name + connected_node
-                self.nodes[node_name].successive[line_name] = self.lines[line_name]
-                self.lines[line_name].successive[connected_node] = self.nodes[connected_node]
-        self.set_weighted_paths()
-        self.set_route_space()
+    def probe(self, signal_information: Signal_information):
+        return self.nodes[signal_information.path[0]].probe(signal_information)
 
     def find_path(self, start_node: str, end_node: str):
         visited = {}
@@ -175,9 +177,6 @@ class Network(object):
         # I want the path from node_start to node_end sort by len
         list_path.sort(key=len)
         return list_path
-
-    def probe(self, signal_information: Signal_information):
-        return self.nodes[signal_information.path[0]].probe(signal_information)
 
     def find_best_snr(self, input_node: str, output_node: str):
         # possible_paths_i_o is a list with the possible path that connects node input to output
@@ -239,28 +238,14 @@ class Network(object):
             if path is None:
                 reject_connection(connection)
             else:
-                """
-                # Obtaining the lines from the path
-                path = path[::3]  # removing the -> from the path
-                lines_list = [path[i] + path[i + 1] for i in range(len(path) - 1)]  # this will return a list of each line in the given path
-                # storing the state of each line
-                matrix_state = np.array([self.lines[line].state for line in lines_list])
-                # obtaining the channel where the same channel is free along each line, the first free one
-                channel = np.flatnonzero(np.all((matrix_state == 1), axis=0))[0]  # to get the index of the matrix where a column has all the elements equal 1
-
-                # convert the path from string to list of string representing the path step by step
-                path_l = []
-                path_l[:0] = path
-                lightpath = Lightpath(connection.signal_power, path_l, channel)
-                self.propagate(lightpath)
-                """
-
+                dft = self.route_space_without_occupied_channels
+                channel = (dft.loc[(dft['path'] == path) & (dft['channel_state'] == 1)].index[0]) % self.channels_number
                 # the path exist, the bit_rate will be calculated with the transceiver of the first node of the given path
                 bit_rate = self.calculate_bit_rate(path, self.nodes[path[0]].transceiver)
                 if bit_rate:
                     # when we have the free path the connection will occupy it, then the path has to be set as occupied -> 0 (in this case)
                     # the path will be removed from the database route_space but the lines in the path will be set as occupied
-                    self.update_path_channels(path)
+                    self.update_path_channels(path, channel)
                     df = self.weighted_paths
                     # It will do a query on the dataframe to have the value of latency and snr
                     connection.latency = float(df.loc[df['path'] == path]['latency'])
@@ -272,52 +257,14 @@ class Network(object):
             connections_out.append(connection)
         return connections_out
 
-    def update_path_channels(self, path):
-
-        """
-        [self.lines[line_name].update_state() for line_name in
-         lines_list]  # setting the channel of each lines of the network as occupied
-
-        df_tmp = self.route_space_without_occupied_channels
-        selected_path = df_tmp.loc[df_tmp['path'].str.contains(path), 'path']  # a dataframe with indexes and path
-
-        UPDATED = 0
-        indexes = []
-        # independently of the numeric index with iat[0] you get the first row absolutely
-        start = selected_path.iat[0]
-        for i in selected_path.index:
-            if selected_path.at[i] == start:
-                if not UPDATED:
-                    UPDATED = 1
-                    indexes.append(i)
-            else:
-                start = selected_path.at[i]
-                indexes.append(i)
-
-        self.route_space.loc[indexes, 'channel state'] = 0
-        self.route_space_without_occupied_channels = self.route_space_without_occupied_channels.drop(indexes)
-        """
-
-    def set_route_space(self):
-        # this method will create and set a dataframe with paths and states of the lines, initially set to free
-        if self.weighted_paths is None:
-            return
-        df = pd.DataFrame()
-        df['path'] = self.weighted_paths['path']
-        df = df.loc[df.index.repeat(self.channels_number)].reset_index(
-            drop=True)  # without the drop=Ture it will maintain also the old indexes
-        df['channel state'] = 1  # setting all the channel as free -> value 1
-        self.route_space = df
-        self.route_space_without_occupied_channels = df.copy()  # this copy will be modified removing the occupied channels
-
     def calculate_bit_rate(self, path, strategy: str):
         # if is wanted the number expressed in bits per second uncomment this line
         # Gbps = 1e9  # 1 gbps = 1e9 bits per second
         Gbps = 1
-        Bn = TRANSCEIVERS_VARIABLES['Bn']
-        Rs = TRANSCEIVERS_VARIABLES['Rs']
-        BERt = TRANSCEIVERS_VARIABLES['BERt']
-        Gsnr = float(self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr'])
+        Bn = CONSTANTS['Bn']
+        Rs = CONSTANTS['Rs']
+        BERt = CONSTANTS['BERt']
+        Gsnr = 10**(float(self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr'])/10)  # gsnr in linear unit
         RB = (Rs/Bn)
         if strategy == 'fixed-rate':
             bit_rate = 100*Gbps if Gsnr >= (2*(erfcinv(2*BERt)**2)*RB) else 0
@@ -331,11 +278,38 @@ class Network(object):
             else:
                 bit_rate = 400*Gbps
         elif strategy == 'shannon':
-            bit_rate = 2*Rs*math.log2(1 + Gsnr*RB)*Gbps/1e9
+            bit_rate = 2*Rs*math.log2(1 + Gsnr*RB)*Gbps/1e9  # to have the bit_rate in Gbps
         else:
             print("Error: it's not possible not having a transceiver not defined")
             return
         return bit_rate
+
+    def update_path_channels(self, path, channel):
+        paths = [path[i * 3:i * 3 + 4] for i in range(int(len(path) / 3))]  # paths contains all the line of the path
+        df_tmp = self.route_space_without_occupied_channels
+        selected_paths = df_tmp.loc[df_tmp['path'].apply(lambda x: True if any(i in x for i in paths) else False), 'path']
+
+        indexes = [i for i in selected_paths.index if (i % self.channels_number) == channel]
+        self.route_space.loc[indexes, 'channel_state'] = 0
+        self.route_space_without_occupied_channels = self.route_space_without_occupied_channels.drop(indexes)
+
+        # setting the state of each line in the path as occupied
+        lines_list = [path.replace('->', '') for path in paths]
+        [self.lines[line_name].update_state(channel) for line_name in
+         lines_list]  # setting the channel of each lines of the network as occupied
+
+    def draw(self):
+        G = nx.Graph()
+        G.add_nodes_from(list(self.nodes.keys()))
+        G.add_edges_from(list(self.lines.keys()))
+        pos = {}
+        for node in self.nodes:
+            pos[node] = self.nodes[node].position
+        fig, ax = plt.subplots()
+        nx.draw_networkx(G, pos=pos, ax=ax, edge_color='dodgerblue', node_color='darkseagreen', width=3.0)
+        ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
+        plt.title('Network')
+        plt.show()
 
     def print_nodes_info(self):
         for node_name in self._nodes:
@@ -345,34 +319,37 @@ class Network(object):
         for line_name in self._lines:
             print(self._lines[line_name])
 
-    def propagate(self, lightpath):
-        return self.nodes[lightpath.path[0]].propagate(lightpath)
-
 
 if __name__ == '__main__':
     network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
 
-    # network.print_lines_info()
-    network.propagate('ABC', 3)
-
+    # network.draw()
+    # network.update_path_channels('A->B->D->C', 2)
+    # network.print_nodes_info()
     """
-    lines_list = ['AB', 'BD']
-    # network.update_path_channels('A->B->C')
-    matrix_state = np.array([network.lines[line].state for line in lines_list])
-    # obtaining the channel where the same channel is free along each line
-    channel = np.flatnonzero(np.all((matrix_state == 1), axis=0))[0]  # to get the index of the matrix where a column has all the elements equal 1
-    print(channel)
-
     out = []
-    for _ in range(3):
+    for _ in range(20):
         conn = Connection('A', 'F', 0.001)
         o = network.stream([conn])
         out.append(o)
-    #print(network.route_space_without_occupied_channels)
-    [print(o) for i in out for o in i]
+    print('-------------')
+    for _ in range(2):
+        conn = Connection('A', 'B', 0.001)
+        o = network.stream([conn])
+        out.append(o)
 
-    
+    lines_list = [line for line in network.lines]
+    matrix_state = np.array([network.lines[line].state for line in lines_list])
+    # print(lines_list, "\n", matrix_state)
+    # print(len(out))
+    # [print(o) for i in out for o in i]
+
+    with pd.ExcelWriter("../route_space_without.xlsx") as writer:
+        network.route_space_without_occupied_channels.to_excel(writer)
+    with pd.ExcelWriter("../route_space.xlsx") as writer:
+        network.route_space.to_excel(writer)
+
     # Fun fact, the net support around 120 connection for each repeated node in node out 
     out = []
     for _ in range(122):
@@ -381,46 +358,4 @@ if __name__ == '__main__':
         out.append(o)
     print(network.route_space_without_occupied_channels)
     [print(o) for i in out for o in i]
-
-    with pd.ExcelWriter("../route_space_without.xlsx") as writer:
-        network.route_space_without_occupied_channels.to_excel(writer)
-    with pd.ExcelWriter("../route_space.xlsx") as writer:
-        network.route_space.to_excel(writer)
-
-    # print(network.route_space)
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    network.update_path_channels('A->B')
-    # print(network.route_space.loc[network.route_space['channel state'] == 0])
-    with pd.ExcelWriter("../route_space_without.xlsx") as writer:
-        network.route_space_without_occupied_channels.to_excel(writer)
-    with pd.ExcelWriter("../route_space.xlsx") as writer:
-        network.route_space.to_excel(writer)
-    
-    df_tmp = network.route_space
-    # ['path'].tolist()
-    selected_path = df_tmp.loc[df_tmp['path'].str.contains('A->C')]
-    print(selected_path)
-
-    UPDATED = 0
-    indexes = []
-    start = selected_path['path'].iat[0]  # independently of the numeric index with iat[0] you get the first row absolutely
-    for i in selected_path.index:
-        if selected_path.at[i, 'path'] == start:
-            if not UPDATED:
-                UPDATED = 1
-                indexes.append(i)
-        else:
-            start = selected_path.at[i, 'path']
-            indexes.append(i)
-    #df_tmp.loc[indexes, 'channel state'] = 0
-    df_tmp = df_tmp.drop(indexes)
-    print(df_tmp)
     """
