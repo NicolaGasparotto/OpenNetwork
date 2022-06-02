@@ -15,7 +15,7 @@ def main():
     network_flex_rate = Network('../sources/nodes_flex-rate_transceiver.json')
     network_flex_rate.connect()
 
-    number_of_connections = 20
+    number_of_connections = 100
     signal_power_connection = 0.001  # Watts
     # first, create a list of 100 casual entries of connection
     node_list = list(network_fixed_rate.nodes.keys())

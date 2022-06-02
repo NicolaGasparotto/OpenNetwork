@@ -2,6 +2,7 @@ import math
 
 from scipy.constants import Planck
 
+from LAB_7.lab_7_package.Lightpath import Lightpath
 from LAB_7.lab_7_package.Node import *
 
 from constants import *
@@ -15,7 +16,8 @@ class Line(object):
         self._length = length
         self._label = label
         self._successive = {}  # dict_ node
-        self._state = [1] * channels_number  # 1 means 'free', 0 means 'occupied'
+        self._n_channel = channels_number
+        self._state = [1] * self.n_channel  # 1 means 'free', 0 means 'occupied'
         self._n_amplifier = math.ceil(
             self.length / CONSTANTS['amplifier_every_km']) + 1  # at the end it's necessary another one
 
@@ -27,6 +29,14 @@ class Line(object):
         self._gamma = CONSTANTS['gamma']
         self._abs_beta2 = CONSTANTS['abs_beta2']
         self._alfa_dB = CONSTANTS['alfa_dB']
+
+    @property
+    def n_channel(self):
+        return self._n_channel
+
+    @n_channel.setter
+    def n_channel(self, new_n_channel):
+        self._n_channel = new_n_channel
 
     @property
     def alfa_dB(self):
@@ -125,23 +135,43 @@ class Line(object):
         self.successive = new_successive
 
     def ase_generation(self):
-        return self.n_amplifier * (Planck * CONSTANTS['frequency'] * CONSTANTS['Bn'] *
-                                   from_dB_to_linear(self.noise_figure) * (from_dB_to_linear(self.gain) - 1))
+        return (self.n_amplifier - 2) * (Planck * CONSTANTS['frequency'] * CONSTANTS['Bn'] *
+                                         from_dB_to_linear(self.noise_figure) * (from_dB_to_linear(self.gain) - 1))
+
+    def nli_generation(self, lightpath: Lightpath):
+        # signal_power^3 * eta_nli * Nspan * noise_bandwidth
+        #                        >>> N span--> numero fibre lungo la linea --> NUMERO AMPLFIEIR -1
+        return lightpath.signal_power ** 3 * self.eta_nli(lightpath.df,
+                                                          lightpath.Rs) * (self.n_amplifier - 1) * CONSTANTS['Bn']
+
+    def eta_nli(self, df, Rs):
+        # 16/27pi * log(pi^2/2 * beta2*Rs^2/alfa * N^(2*Rf/df) ) * gamma^2/4alfa*beta2 * 1/Rs**3
+        a = self.alfa_dB / (10 * math.log10(math.e))
+        e_nli = 16 / (27 * math.pi) * math.log(
+            math.pi ** 2 * self.abs_beta2 * Rs ** 2 * self.n_channel ** (2 * Rs / df) / (2 * a)) * self.gamma ** 2 / (
+                        4 * a * self.abs_beta2 * Rs ** 3)
+
+        return e_nli
+
+    def optimized_launch_power(self, eta):
+        # (NF * f * h * G/2*eta) ^ 1/3
+        return (self.ase_generation() / 2 * CONSTANTS['Bn'] * eta) ** (1 / 3)
 
     def latency_generation(self):
         c = 3 * (10 ** 9)  # light speed
         return float(self.length / (c * 2 / 3))  # this is the latency calculated
 
-    def noise_generation(self, signal_power):
-        # print(type(signal_power), signal_power)
-        return signal_power * self.length * (10 ** -9)
+    def noise_generation(self, lightpath: Lightpath):
+        return self.ase_generation() + self.nli_generation(lightpath)
 
-    def probe(self, signal_i: Signal_information):
-        signal_i.add_latency(self.latency_generation())
-        signal_i.add_noise_power(self.noise_generation(signal_i.signal_power))
+    def probe(self, lightpath: Lightpath):
+        # setting the s_p for the signal
+        lightpath.signal_power = self.optimized_launch_power(self.eta_nli(lightpath.df, lightpath.Rs))
+        lightpath.add_latency(self.latency_generation())
+        lightpath.add_noise_power(self.noise_generation(lightpath))
         # it will recall the method probe for the next node
-        signal_i = self.successive[signal_i.path[0]].probe(signal_i)
-        return signal_i
+        lightpath = self.successive[lightpath.path[0]].probe(lightpath)
+        return lightpath
 
     def update_state(self, channel: int):
         # update the state of the channel in the list of available channels
@@ -154,5 +184,7 @@ class Line(object):
 
 
 if __name__ == '__main__':
-    line = Line('AC', 12.3, 5)
-    print(line)
+    line = Line('AC', 353553.39059327374, 10)
+    print('eta_nli', line.eta_nli(50e9, 32e9))
+    print('ase_gen ', line.ase_generation())
+    print('olp ', line.optimized_launch_power(line.eta_nli(50e9, 32e9)))

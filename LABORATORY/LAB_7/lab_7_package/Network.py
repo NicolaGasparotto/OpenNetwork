@@ -1,25 +1,22 @@
 import json
-
+import math
 # To do the math
 from itertools import permutations
-import math
 
-import numpy as np
-from scipy.special import erfcinv
-
-# To do a better drawing of the network graph
-import networkx as nx
 # Plots
 import matplotlib.pyplot as plt
+# To do a better drawing of the network graph
+import networkx as nx
 # Dataframe
 import pandas as pd
+from scipy.special import erfcinv
 
+from LAB_7.lab_7_package.Connection import Connection
 # Classes of the Network
+from LAB_7.lab_7_package.Lightpath import Lightpath
 from LAB_7.lab_7_package.Line import Line
 from LAB_7.lab_7_package.Node import Node
-from LAB_7.lab_7_package.Connection import Connection
 from LAB_7.lab_7_package.Signal_information import Signal_information
-
 from constants import CONSTANTS
 
 
@@ -38,8 +35,6 @@ class Network(object):
         # it's the same dataframe but when a connection occupies a channel the path and so the channel will be removed
         self._route_space_without_occupied_channels = None
         # for default the signal power propagating along the network it's set to be
-        # 0.001 Watts
-        self._signal_power = 0.001
 
         # definition of nodes and lines
         for node_name in json_data:
@@ -68,14 +63,6 @@ class Network(object):
     @weighted_paths.setter
     def weighted_paths(self, value):
         self._weighted_paths = value
-
-    @property
-    def signal_power(self):
-        return self._signal_power
-
-    @signal_power.setter
-    def signal_power(self, new_signal_power):
-        self._signal_power = new_signal_power
 
     @property
     def channels_number(self):
@@ -124,17 +111,20 @@ class Network(object):
                 for node_name in path:
                     interline = '' if node_name == path[-1] else '->'
                     path_label += node_name + interline
-                signal = Signal_information(self.signal_power, path)
-                signal = self.probe(signal)
+                lightpath = Lightpath(0, path)
+                lightpath = self.probe(lightpath)
                 paths_label.append(path_label)
-                latencies.append(signal.latency)
-                noises.append(signal.noise_power)
-                snrs.append(10 * math.log10(signal.signal_power / signal.noise_power))
+                latencies.append(lightpath.latency)
+                noises.append(lightpath.noise_power)
+                snrs.append(10 * math.log10(lightpath.signal_power / lightpath.noise_power))
         df['path'] = paths_label
         df['latency'] = latencies
         df['noise power'] = noises
         df['snr'] = snrs
         self.weighted_paths = df
+
+    def probe(self, lightpath: Lightpath):
+        return self.nodes[lightpath.path[0]].probe(lightpath)
 
     def set_route_space(self):
         # this method will create and set a dataframe with paths and states of the lines, initially set to free
@@ -147,9 +137,6 @@ class Network(object):
         df['channel_state'] = 1  # setting all the channel as free -> value 1
         self.route_space = df
         self.route_space_without_occupied_channels = df.copy()  # this copy will be modified removing the occupied channels
-
-    def probe(self, signal_information: Signal_information):
-        return self.nodes[signal_information.path[0]].probe(signal_information)
 
     def find_path(self, start_node: str, end_node: str):
         visited = {}
@@ -218,13 +205,6 @@ class Network(object):
         if self._route_space is None:
             self.set_route_space()
         for connection in connections:
-            # if the signal power of the connection it's different from the signal power of the network, it's
-            # necessary to set the dataframe of the system with the new signal power and so the entire network
-            # will have a different signal_power
-            if connection.signal_power != self.signal_power:
-                self.signal_power = connection.signal_power
-                self.set_weighted_paths()
-
             # path is a string not a list of string, such as the attribute path in signal_information
             # i.e: path = 'A->B->C'
             if best == 'latency':
@@ -323,39 +303,7 @@ class Network(object):
 if __name__ == '__main__':
     network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
-
+    print(network.weighted_paths)
     # network.draw()
     # network.update_path_channels('A->B->D->C', 2)
     # network.print_nodes_info()
-    """
-    out = []
-    for _ in range(20):
-        conn = Connection('A', 'F', 0.001)
-        o = network.stream([conn])
-        out.append(o)
-    print('-------------')
-    for _ in range(2):
-        conn = Connection('A', 'B', 0.001)
-        o = network.stream([conn])
-        out.append(o)
-
-    lines_list = [line for line in network.lines]
-    matrix_state = np.array([network.lines[line].state for line in lines_list])
-    # print(lines_list, "\n", matrix_state)
-    # print(len(out))
-    # [print(o) for i in out for o in i]
-
-    with pd.ExcelWriter("../route_space_without.xlsx") as writer:
-        network.route_space_without_occupied_channels.to_excel(writer)
-    with pd.ExcelWriter("../route_space.xlsx") as writer:
-        network.route_space.to_excel(writer)
-
-    # Fun fact, the net support around 120 connection for each repeated node in node out 
-    out = []
-    for _ in range(122):
-        conn = Connection('A', 'B', 0.001)
-        o = network.stream([conn])
-        out.append(o)
-    print(network.route_space_without_occupied_channels)
-    [print(o) for i in out for o in i]
-    """
