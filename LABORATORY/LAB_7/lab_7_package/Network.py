@@ -1,6 +1,7 @@
 import json
 import math
 # To do the math
+import random
 from itertools import permutations
 
 # Plots
@@ -8,6 +9,7 @@ import matplotlib.pyplot as plt
 # To do a better drawing of the network graph
 import networkx as nx
 # Dataframe
+import numpy as np
 import pandas as pd
 from scipy.special import erfcinv
 
@@ -35,6 +37,7 @@ class Network(object):
         # it's the same dataframe but when a connection occupies a channel the path and so the channel will be removed
         self._route_space_without_occupied_channels = None
         # for default the signal power propagating along the network it's set to be
+        self.traffic_matrix = None
 
         # definition of nodes and lines
         for node_name in json_data:
@@ -87,6 +90,14 @@ class Network(object):
     @route_space_without_occupied_channels.setter
     def route_space_without_occupied_channels(self, new_route_space_without_occupied_channels):
         self._route_space_without_occupied_channels = new_route_space_without_occupied_channels
+
+    @property
+    def traffic_matrix(self):
+        return self._traffic_matrix
+
+    @traffic_matrix.setter
+    def traffic_matrix(self, new_traffic_matrix):
+        self._traffic_matrix = new_traffic_matrix
 
     def connect(self):
         for node_name in self.nodes:
@@ -299,11 +310,18 @@ class Network(object):
         for line_name in self._lines:
             print(self._lines[line_name])
 
+    def generate_traffic_matrix(self, M: int):
+        traffic_matrix = np.where(np.eye(len(self.nodes)) > 0, 0, 100 * M)
+        index_values = column_values = self.nodes.keys()
+        self.traffic_matrix = pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
+
 
 if __name__ == '__main__':
     network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
     print(network.weighted_paths)
-    # network.draw()
-    # network.update_path_channels('A->B->D->C', 2)
-    # network.print_nodes_info()
+    network.generate_traffic_matrix(1)
+    if not network.traffic_matrix['A']['A']:
+        print('Hi')
+    # random.choices([*network.nodes.keys()], k=2)
+    # [ print(random.choices([*network.nodes.keys()], k=2)) for _ in range(100) ]

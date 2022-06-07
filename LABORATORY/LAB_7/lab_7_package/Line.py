@@ -155,7 +155,7 @@ class Line(object):
 
     def optimized_launch_power(self, eta):
         # (NF * f * h * G/2*eta) ^ 1/3
-        return (self.ase_generation() / 2 * CONSTANTS['Bn'] * eta) ** (1 / 3)
+        return ((from_dB_to_linear(self.noise_figure)*from_dB_to_linear(self.gain)*Planck*CONSTANTS['frequency']) / (2 * eta)) ** (1 / 3)
 
     def latency_generation(self):
         c = 3 * (10 ** 9)  # light speed

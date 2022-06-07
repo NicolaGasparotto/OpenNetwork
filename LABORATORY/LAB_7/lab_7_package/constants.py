@@ -9,4 +9,4 @@ f.close()
 
 
 def from_dB_to_linear(number):
-    return 10 ** log10(number / 10)
+    return 10 ** (number / 10)

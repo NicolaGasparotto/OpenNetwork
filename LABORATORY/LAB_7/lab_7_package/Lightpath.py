@@ -38,7 +38,3 @@ class Lightpath(Signal_information):
     def __str__(self):
         return super().__str__() + f"Channel Slot: {self.channel_slot}\n"
 
-
-if __name__ == '__main__':
-    l1 = Lightpath(0.001, ['A', 'C'], 1)
-    print(l1)
