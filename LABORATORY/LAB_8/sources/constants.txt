@@ -1,0 +1,11 @@
+amplifier_every_km = 80e3
+gain = 16
+noise_figure = 3
+BERt = 10e-3
+Bn = 12.5e9
+alfa_dB = 0.2e-3
+abs_beta2 = 2.3e-26
+gamma = 1.27e-3
+Rs = 32e9
+df = 50e9
+frequency = 193.414e12

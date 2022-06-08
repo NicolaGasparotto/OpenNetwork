@@ -13,12 +13,11 @@ import numpy as np
 import pandas as pd
 from scipy.special import erfcinv
 
-from LAB_7.lab_7_package.Connection import Connection
+from LAB_8.lab_8_package.Connection import Connection
 # Classes of the Network
-from LAB_7.lab_7_package.Lightpath import Lightpath
-from LAB_7.lab_7_package.Line import Line
-from LAB_7.lab_7_package.Node import Node
-from LAB_7.lab_7_package.Signal_information import Signal_information
+from LAB_8.lab_8_package.Lightpath import Lightpath
+from LAB_8.lab_8_package.Line import Line
+from LAB_8.lab_8_package.Node import Node
 from constants import CONSTANTS
 
 
@@ -122,6 +121,7 @@ class Network(object):
                 for node_name in path:
                     interline = '' if node_name == path[-1] else '->'
                     path_label += node_name + interline
+                # initially the lightpath has a signal power of 0, and then it will be calculated
                 lightpath = Lightpath(0, path)
                 lightpath = self.probe(lightpath)
                 paths_label.append(path_label)
@@ -136,6 +136,9 @@ class Network(object):
 
     def probe(self, lightpath: Lightpath):
         return self.nodes[lightpath.path[0]].probe(lightpath)
+
+    def propagate(self, lightpath):
+        return self.nodes[lightpath.path[0]].propagate(lightpath)
 
     def set_route_space(self):
         # this method will create and set a dataframe with paths and states of the lines, initially set to free
@@ -229,18 +232,24 @@ class Network(object):
             if path is None:
                 reject_connection(connection)
             else:
+                # creating a lightpath object that has to be propagated along the path to retrieve the information about
+                # the connection
+                lightpath = Lightpath(0, path.split('->'))
                 dft = self.route_space_without_occupied_channels
                 channel = (dft.loc[(dft['path'] == path) & (dft['channel_state'] == 1)].index[0]) % self.channels_number
                 # the path exist, the bit_rate will be calculated with the transceiver of the first node of the given path
-                bit_rate = self.calculate_bit_rate(path, self.nodes[path[0]].transceiver)
+                lightpath.channel_slot = channel
+                bit_rate = self.calculate_bit_rate(lightpath, self.nodes[path[0]].transceiver)
                 if bit_rate:
+                    lightpath_out = self.propagate(lightpath)
                     # when we have the free path the connection will occupy it, then the path has to be set as occupied -> 0 (in this case)
                     # the path will be removed from the database route_space but the lines in the path will be set as occupied
-                    self.update_path_channels(path, channel)
-                    df = self.weighted_paths
-                    # It will do a query on the dataframe to have the value of latency and snr
-                    connection.latency = float(df.loc[df['path'] == path]['latency'])
-                    connection.snr = float(df.loc[df['path'] == path]['snr'])
+                    self.update_paths_channel(path, channel)
+
+                    # setting the value of the connection
+                    connection.signal_power = lightpath_out.signal_power
+                    connection.latency = lightpath_out.latency
+                    connection.snr = 10*math.log10(lightpath_out.signal_power/lightpath_out.noise_power)
                     connection.bit_rate = bit_rate
                 else:
                     reject_connection(connection)
@@ -248,12 +257,13 @@ class Network(object):
             connections_out.append(connection)
         return connections_out
 
-    def calculate_bit_rate(self, path, strategy: str):
+    def calculate_bit_rate(self, lightpath: Lightpath, strategy: str):
         # if is wanted the number expressed in bits per second uncomment this line
         # Gbps = 1e9  # 1 gbps = 1e9 bits per second
+        path = '->'.join([str(item) for item in lightpath.path])
         Gbps = 1
         Bn = CONSTANTS['Bn']
-        Rs = CONSTANTS['Rs']
+        Rs = lightpath.Rs  # specific symbol rate of the lightpath
         BERt = CONSTANTS['BERt']
         Gsnr = 10**(float(self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr'])/10)  # gsnr in linear unit
         RB = (Rs/Bn)
@@ -275,8 +285,8 @@ class Network(object):
             return
         return bit_rate
 
-    def update_path_channels(self, path, channel):
-        paths = [path[i * 3:i * 3 + 4] for i in range(int(len(path) / 3))]  # paths containing all the line of the path
+    def update_paths_channel(self, path, channel):
+        paths = [path[i * 3:i * 3 + 4] for i in range(int(len(path) / 3))]  # paths contains all the line of the path
         df_tmp = self.route_space_without_occupied_channels
         selected_paths = df_tmp.loc[df_tmp['path'].apply(lambda x: True if any(i in x for i in paths) else False), 'path']
 
@@ -284,10 +294,45 @@ class Network(object):
         self.route_space.loc[indexes, 'channel_state'] = 0
         self.route_space_without_occupied_channels = self.route_space_without_occupied_channels.drop(indexes)
 
-        # setting the state of each line in the path as occupied
-        lines_list = [path.replace('->', '') for path in paths]
-        [self.lines[line_name].update_state(channel) for line_name in
-         lines_list]  # setting the channel of each lines of the network as occupied
+    def generate_traffic_matrix(self, M: int):
+        traffic_matrix = np.where(np.eye(len(self.nodes)) > 0, 0, 100 * M)
+        index_values = column_values = self.nodes.keys()
+        self.traffic_matrix = pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
+
+    def update_traffic_matrix(self, node_I, node_O, bit_rate_connection):
+        # updating value inside the traffic matrix
+        matrix_value = self.traffic_matrix.at[node_I, node_O]
+        traffic = matrix_value - bit_rate_connection
+        self.traffic_matrix.loc[node_I, node_O] = traffic if traffic > 0 else 0
+
+    def generate_traffic(self, M: int):
+        if self.traffic_matrix is None:
+            self.generate_traffic_matrix(M)
+
+        matrix = self.traffic_matrix.to_numpy()
+        total_capacity = np.sum(matrix)
+        # counter for the number of connection
+        failed_connection = successful_connection = 0
+        # represent the percentage of missed connection
+        percentage = 10/100
+
+        # generate connections until the traffic matrix is all 0 OR
+        # the connection failed are greater than the connection streamed in percentage
+        while (failed_connection <= percentage * successful_connection) and np.count_nonzero(matrix):
+            nodes = random.choices([*network.nodes.keys()], k=2)
+            if self.traffic_matrix.at[nodes[0], nodes[1]] != 0:
+                bit_rate_connection = self.stream([Connection(nodes[0], nodes[1], 0)], 'snr').pop().bit_rate
+                if bit_rate_connection != 0:
+                    successful_connection += 1
+                    self.update_traffic_matrix(nodes[0], nodes[1], bit_rate_connection)
+                else:
+                    failed_connection += 1
+
+        total_capacity = total_capacity - np.sum(matrix)
+
+        if not np.count_nonzero(matrix):
+            return M, total_capacity
+        return -1, total_capacity
 
     def draw(self):
         G = nx.Graph()
@@ -310,50 +355,10 @@ class Network(object):
         for line_name in self._lines:
             print(self._lines[line_name])
 
-    def generate_traffic_matrix(self, M: int):
-        traffic_matrix = np.where(np.eye(len(self.nodes)) > 0, 0, 100 * M)
-        index_values = column_values = self.nodes.keys()
-        self.traffic_matrix = pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
-
-    def update_traffic_matrix(self, node_I, node_O, bit_rate_connection):
-        # updating value inside the traffic matrix
-        matrix_value = self.traffic_matrix.at[node_I, node_O]
-        traffic = matrix_value - bit_rate_connection
-        self.traffic_matrix.loc[node_I, node_O] = traffic if traffic > 0 else 0
-
-    def generate_traffic(self, M: int):
-        if self.traffic_matrix is None:
-            self.generate_traffic_matrix(M)
-
-        # counter for the number of connection
-        failed_connection = successful_connection = 0
-        # represent the percentage of missed connection
-        percentage = 10/100
-
-        # generate connections until the traffic matrix is all 0 OR
-        # the connection failed are greater than the connection streamed in percentage
-        matrix = self.traffic_matrix.to_numpy()
-        while (failed_connection <= percentage * successful_connection) and np.count_nonzero(matrix):
-            nodes = random.choices([*network.nodes.keys()], k=2)
-            if self.traffic_matrix.at[nodes[0], nodes[1]] != 0:
-                bit_rate_connection = self.stream([Connection(nodes[0], nodes[1], 0)], 'snr').pop().bit_rate
-                if bit_rate_connection != 0:
-                    successful_connection += 1
-                    self.update_traffic_matrix(nodes[0], nodes[1], bit_rate_connection)
-                else:
-                    failed_connection += 1
-
-        if not np.count_nonzero(matrix):
-            return M
-        return -1
-
 
 if __name__ == '__main__':
     network = Network('../sources/nodes_fixed-rate_transceiver.json')
     network.connect()
-    # print(network.weighted_paths)
     print(network.generate_traffic(5))
-
-    # scelta RANDOM NODI DELLA CONNECTION
-    # random.choices([*network.nodes.keys()], k=2)
-    # [ print(random.choices([*network.nodes.keys()], k=2)) for _ in range(100) ]
+    print(network.traffic_matrix)
+    # print(network.route_space_without_occupied_channels)
