@@ -1,3 +1,4 @@
+import itertools
 import json
 import math
 # To do the math
@@ -299,40 +300,45 @@ class Network(object):
         index_values = column_values = self.nodes.keys()
         self.traffic_matrix = pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
 
-    def update_traffic_matrix(self, node_I, node_O, bit_rate_connection):
+    def update_traffic_matrix(self, nodes, bit_rate_connection, elements):
+        node_I = nodes[0]
+        node_O = nodes[1]
         # updating value inside the traffic matrix
         matrix_value = self.traffic_matrix.at[node_I, node_O]
         traffic = matrix_value - bit_rate_connection
-        self.traffic_matrix.loc[node_I, node_O] = traffic if traffic > 0 else 0
+        if traffic > 0:
+            self.traffic_matrix.loc[node_I, node_O] = traffic
+        else:
+            self.traffic_matrix.loc[node_I, node_O] = 0
+            elements.remove(nodes)
 
     def generate_traffic(self, M: int):
-        if self.traffic_matrix is None:
-            self.generate_traffic_matrix(M)
-
-        matrix = self.traffic_matrix.to_numpy()
-        total_capacity = np.sum(matrix)
+        self.generate_traffic_matrix(M)
+        total_capacity = np.sum(self.traffic_matrix.to_numpy())
         # counter for the number of connection
-        failed_connection = successful_connection = 0
+        failed_connection = 0
+        successful_connection = 0
         # represent the percentage of missed connection
         percentage = 10/100
-
+        elements = list(permutations(self.nodes.keys(), 2))
         # generate connections until the traffic matrix is all 0 OR
         # the connection failed are greater than the connection streamed in percentage
-        while (failed_connection <= percentage * successful_connection) and np.count_nonzero(matrix):
-            nodes = random.choices([*network.nodes.keys()], k=2)
-            if self.traffic_matrix.at[nodes[0], nodes[1]] != 0:
-                bit_rate_connection = self.stream([Connection(nodes[0], nodes[1], 0)], 'snr').pop().bit_rate
-                if bit_rate_connection != 0:
-                    successful_connection += 1
-                    self.update_traffic_matrix(nodes[0], nodes[1], bit_rate_connection)
-                else:
-                    failed_connection += 1
+        while (failed_connection <= percentage * successful_connection) and np.count_nonzero(self.traffic_matrix.to_numpy()):
+            random_nodes = random.choices(elements).pop()
+            bit_rate_connection = self.stream([Connection(random_nodes[0], random_nodes[1], 0)], 'snr').pop().bit_rate
+            if bit_rate_connection != 0:
+                successful_connection += 1
+                self.update_traffic_matrix(random_nodes, bit_rate_connection, elements)
+            else:
+                failed_connection += 1
 
-        total_capacity = total_capacity - np.sum(matrix)
-
+        total_satisfied_traffic = total_capacity - np.sum(self.traffic_matrix.to_numpy())
+        """
         if not np.count_nonzero(matrix):
             return M, total_capacity
         return -1, total_capacity
+        """
+        return (total_satisfied_traffic/total_capacity)*100
 
     def draw(self):
         G = nx.Graph()
@@ -355,10 +361,17 @@ class Network(object):
         for line_name in self._lines:
             print(self._lines[line_name])
 
+    def reset_network(self):
+        self.route_space['channel_state'] = 1
+        self.route_space_without_occupied_channels = self.route_space.copy()
+        for line in self.lines:
+            self.lines[line].state = [1] * self.lines[line].n_channel
+
 
 if __name__ == '__main__':
-    network = Network('../sources/nodes_fixed-rate_transceiver.json')
+    network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
-    print(network.generate_traffic(5))
+    network.generate_traffic(30)
     print(network.traffic_matrix)
-    # print(network.route_space_without_occupied_channels)
+
+
