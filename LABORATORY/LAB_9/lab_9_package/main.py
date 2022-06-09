@@ -60,7 +60,7 @@ def main():
     plt.show()
 
     # -------------------------------------------------------------------------------------------------------
-    M = list(range(1, 100))
+    M = list(range(1, 40))
     total_network_capacity_fixed = []
     total_network_capacity_flex = []
     total_network_capacity_shannon = []
@@ -70,9 +70,9 @@ def main():
         network_fixed_rate.reset_network()
         network_flex_rate.reset_network()
         network_shannon.reset_network()
-        total_network_capacity_fixed.append(100-network_fixed_rate.generate_traffic(m))
-        total_network_capacity_flex.append(100-network_flex_rate.generate_traffic(m))
-        total_network_capacity_shannon.append(100-network_shannon.generate_traffic(m))
+        total_network_capacity_fixed.append(network_fixed_rate.generate_traffic(m))
+        total_network_capacity_flex.append(network_flex_rate.generate_traffic(m))
+        total_network_capacity_shannon.append(network_shannon.generate_traffic(m))
 
     plt.plot(M, total_network_capacity_fixed, label='fixed-rate')
     plt.plot(M, total_network_capacity_flex, label='flex-rate')

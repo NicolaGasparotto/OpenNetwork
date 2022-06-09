@@ -22,6 +22,9 @@ class Line(object):
             self.length / CONSTANTS['amplifier_every_km']) + 1  # at the end it's necessary another one
         self._in_service = 1  # 1->IN SERVICE, 0->OUT OF SERVICE
 
+        self._opt_signal_power = 0
+        self._ase = 0
+        self._nli = 0
         # constants
         self._gain = CONSTANTS['gain']
         self._noise_figure = CONSTANTS['noise_figure']
@@ -30,6 +33,30 @@ class Line(object):
         self._gamma = CONSTANTS['gamma']
         self._abs_beta2 = CONSTANTS['abs_beta2']
         self._alfa_dB = CONSTANTS['alfa_dB']
+
+    @property
+    def opt_signal_power(self):
+        return self._opt_signal_power
+
+    @opt_signal_power.setter
+    def opt_signal_power(self, new_opt_signal_power):
+        self._opt_signal_power = new_opt_signal_power
+
+    @property
+    def ase(self):
+        return self._ase
+
+    @ase.setter
+    def ase(self, new_ase):
+        self._ase = new_ase
+
+    @property
+    def nli(self):
+        return self._nli
+
+    @nli.setter
+    def nli(self, new_nli):
+        self._nli = new_nli
 
     @property
     def in_service(self):
@@ -144,14 +171,16 @@ class Line(object):
         self.successive = new_successive
 
     def ase_generation(self):
-        return (self.n_amplifier - 2) * (Planck * CONSTANTS['frequency'] * CONSTANTS['Bn'] *
-                                         from_dB_to_linear(self.noise_figure) * (from_dB_to_linear(self.gain) - 1))
+        self.ase = (self.n_amplifier - 2) * (Planck * CONSTANTS['frequency'] * CONSTANTS['Bn'] *
+                                             from_dB_to_linear(self.noise_figure) * (from_dB_to_linear(self.gain) - 1))
+        return self.ase
 
     def nli_generation(self, lightpath: Lightpath):
         # signal_power^3 * eta_nli * Nspan * noise_bandwidth
         #                        >>> N span--> numero fibre lungo la linea --> NUMERO AMPLFIEIR -1
-        return lightpath.signal_power ** 3 * self.eta_nli(lightpath.df,
-                                                          lightpath.Rs) * (self.n_amplifier - 1) * CONSTANTS['Bn']
+        self.nli = lightpath.signal_power ** 3 * self.eta_nli(lightpath.df,
+                                                              lightpath.Rs) * (self.n_amplifier - 1) * CONSTANTS['Bn']
+        return self.nli
 
     def eta_nli(self, df, Rs):
         # 16/27pi * log(pi^2/2 * beta2*Rs^2/alfa * N^(2*Rf/df) ) * gamma^2/4alfa*beta2 * 1/Rs**3
@@ -164,7 +193,8 @@ class Line(object):
 
     def optimized_launch_power(self, eta):
         # (NF * f * h * G/2*eta) ^ 1/3
-        return ((from_dB_to_linear(self.noise_figure)*from_dB_to_linear(self.gain)*Planck*CONSTANTS['frequency']) / (2 * eta)) ** (1 / 3)
+        return ((from_dB_to_linear(self.noise_figure) * from_dB_to_linear(self.gain) * Planck * CONSTANTS[
+            'frequency']) / (2 * eta)) ** (1 / 3)
 
     def latency_generation(self):
         c = 3 * (10 ** 9)  # light speed
@@ -175,7 +205,9 @@ class Line(object):
 
     def probe(self, lightpath: Lightpath):
         # setting the s_p for the signal
-        lightpath.signal_power = self.optimized_launch_power(self.eta_nli(lightpath.df, lightpath.Rs))
+        sig_pow = self.optimized_launch_power(self.eta_nli(lightpath.df, lightpath.Rs))
+        self.opt_signal_power = sig_pow
+        lightpath.signal_power = sig_pow
         lightpath.add_latency(self.latency_generation())
         lightpath.add_noise_power(self.noise_generation(lightpath))
         # it will recall the method probe for the next node
@@ -196,7 +228,7 @@ class Line(object):
         # update the state of the channel in the list of available channels
         # the first free channel found will be changed and the function will stop
         # there is no control for the condition when all the channels are occupied
-        self._state[channel] = 0
+        self.state[channel] = 0
 
     def __str__(self):
         return f"Node line: {self.label}\nLength: {self.length}\nState (1->Free, 0->Occupied): {self.state}\n"
