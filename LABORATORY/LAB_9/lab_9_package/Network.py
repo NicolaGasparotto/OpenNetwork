@@ -293,7 +293,7 @@ class Network(object):
     def generate_traffic_matrix(self, M: int):
         traffic_matrix = np.where(np.eye(len(self.nodes)) > 0, 0, 100 * M)
         index_values = column_values = self.nodes.keys()
-        self.traffic_matrix = pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
+        return pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
 
     def update_traffic_matrix(self, nodes, bit_rate_connection, elements):
         node_I = nodes[0]
@@ -307,8 +307,14 @@ class Network(object):
             self.traffic_matrix.loc[node_I, node_O] = 0
             elements.remove(nodes)
 
-    def generate_traffic(self, M: int):
-        self.generate_traffic_matrix(M)
+    def generate_traffic(self, M: int, randomization='random', random_nodes_list=None):
+        if random_nodes_list is None:
+            random_nodes_list = []
+            list_flag = False
+        else:
+            list_flag = True
+        cnt = 0
+        self.traffic_matrix = self.generate_traffic_matrix(M)
         total_capacity = np.sum(self.traffic_matrix.to_numpy())
         # counter for the number of connection
         failed_connection = 0
@@ -316,10 +322,20 @@ class Network(object):
         # represent the percentage of missed connection
         percentage = 10/100
         elements = list(permutations(self.nodes.keys(), 2))
+        # this will guarantee always the same sequence of random nodes even if the number of picked connection change
+        if randomization != 'random':
+            np.random.seed(2022)
         # generate connections until the traffic matrix is all 0 OR
         # the connection failed are greater than the connection streamed in percentage
         while (failed_connection <= percentage * successful_connection) and np.count_nonzero(self.traffic_matrix.to_numpy()):
-            random_nodes = random.choices(elements).pop()
+            random_nodes = elements[np.random.choice(len(elements))]
+            if randomization == 'list':
+                if cnt < len(random_nodes_list) and list_flag:
+                    random_nodes = random_nodes_list[cnt]
+                    cnt += 1
+                else:
+                    list_flag = False
+                    random_nodes_list.append(random_nodes)
             bit_rate_connection = self.stream([Connection(random_nodes[0], random_nodes[1], 0)], 'snr').pop().bit_rate
             if bit_rate_connection != 0:
                 successful_connection += 1
@@ -328,11 +344,9 @@ class Network(object):
                 failed_connection += 1
 
         total_satisfied_traffic = total_capacity - np.sum(self.traffic_matrix.to_numpy())
-        """
-        if not np.count_nonzero(matrix):
-            return M, total_capacity
-        return -1, total_capacity
-        """
+
+        if randomization == 'list':
+            return total_satisfied_traffic, random_nodes_list
         return total_satisfied_traffic
 
     def draw(self):
@@ -357,17 +371,29 @@ class Network(object):
             print(self._lines[line_name])
 
     def reset_network(self):
-        self.route_space['channel_state'] = 1
+        self.route_space.loc[:, :] = 1
         for line in self.lines:
             self.lines[line].state = [1] * self.lines[line].n_channel
 
 
 if __name__ == '__main__':
+    """
+    network = Network('../sources/nodes_shannon_transceiver.json')
+    network.connect()
+    tot, lista1 = network.generate_traffic(5, 'list')
+    print('shannon', tot, lista1)
+
+    network = Network('../sources/nodes_flex-rate_transceiver.json')
+    network.connect()
+    tot, lista2 = network.generate_traffic(5, 'list', lista1)
+    print('flex', tot, lista1)
+
     network = Network('../sources/nodes_fixed-rate_transceiver.json')
     network.connect()
-
-    network.generate_traffic(5)
+    tot, lista3 = network.generate_traffic(5, 'list', lista2)
+    print('fixed', tot, lista3)
+    """
+    network = Network('../sources/nodes_shannon_transceiver.json')
+    network.connect()
+    print(np.sum(network.generate_traffic_matrix(2).to_numpy()))
     print(network.traffic_matrix)
-
-
-
