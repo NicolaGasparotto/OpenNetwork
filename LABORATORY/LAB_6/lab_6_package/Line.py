@@ -1,4 +1,4 @@
-from LAB_7.lab_7_package.Node import *
+from LAB_6.lab_6_package.Node import *
 
 
 class Line(object):

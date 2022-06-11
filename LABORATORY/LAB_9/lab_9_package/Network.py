@@ -1,3 +1,4 @@
+from datetime import datetime
 import itertools
 import json
 import math
@@ -37,7 +38,8 @@ class Network(object):
         # for default the signal power propagating along the network it's set to be
         self.traffic_matrix = None
         self.logger = None
-        
+        self._congested_line = None
+
         # definition of nodes and lines
         for node_name in json_data:
             node_i_dict = json_data[node_name]
@@ -97,7 +99,15 @@ class Network(object):
     @logger.setter
     def logger(self, new_logger):
         self._logger = new_logger
-    
+
+    @property
+    def congested_line(self):
+        return self._congested_line
+
+    @congested_line.setter
+    def congested_line(self, new_congested_line):
+        self._congested_line = new_congested_line
+
     def connect(self):
         for node_name in self.nodes:
             for connected_node in self.nodes[node_name].connected_nodes:
@@ -197,7 +207,8 @@ class Network(object):
     def find_best_latency(self, input_node: str, output_node: str):
         # possible_paths_i_o is a list with the possible path that connects node input to output
         possible_paths_i_o = [path for path in list(self.route_space.index)
-                              if (path[0] == input_node and path[-1] == output_node) and (self.route_space.loc[path].any())]
+                              if (path[0] == input_node and path[-1] == output_node)
+                              and (self.route_space.loc[path].any())]
         # if the list of possible path is empty it means that there are no free path
         if not possible_paths_i_o:
             return None
@@ -245,7 +256,7 @@ class Network(object):
                     # when we have the free path the connection will occupy it, then the path has to be set as occupied -> 0 (in this case)
                     # the path will be removed from the database route_space but the lines in the path will be set as occupied
                     self.update_paths_channel(path, channel)
-
+                    self.update_logger(path, channel, bit_rate)
                     # setting the value of the connection
                     connection.signal_power = lightpath_out.signal_power
                     connection.latency = lightpath_out.latency
@@ -285,6 +296,12 @@ class Network(object):
             return
         return bit_rate
 
+    def update_logger(self, path: str, channel_id: int, bit_rate: float):
+        if self.logger is None:
+            self.set_logger()
+        value = {'path': path, 'epoch_time': datetime.now().strftime('%d/%m/%Y %H:%M:%S'), 'channel_ID': channel_id, 'bit_rate': bit_rate}
+        self.logger = self.logger.append(value, ignore_index=True)
+
     def update_paths_channel(self, path, channel):
         paths = [path[i * 3:i * 3 + 4] for i in range(int(len(path) / 3))]  # all the lines inside the path
         paths = '|'.join(paths)
@@ -307,6 +324,28 @@ class Network(object):
             self.traffic_matrix.loc[node_I, node_O] = 0
             elements.remove(nodes)
 
+    def strong_failure(self, line_label: str):
+        self.lines[line_label].in_service = 0
+        self.lines[line_label].state = [0]*self.channels_number
+
+    def set_list_of_possible_connection(self):
+        elements = list(permutations(self.nodes.keys(), 2))
+        elements_without_null_connection = [conn for conn in elements if self.traffic_matrix[conn[1]][conn[0]]]
+        return elements_without_null_connection
+
+    def recovery_traffic(self):
+        if self.congested_line is None:
+            return
+        path_line = '->'.join(self.congested_line[i:i + 1] for i in range(0, len(self.congested_line)))
+        df = self.logger
+        for row in df[df['path'].str.contains(path_line)][['path', 'bit_rate', 'channel_ID']].to_numpy():
+            lines = [row[0][i * 3:i * 3 + 4] for i in range(int(len(row[0]) / 3))]
+            for line in lines:
+                if line != path_line:
+                    self.lines[line.replace('->', '')].update_state(row[2], 1)
+                    self.route_space.loc[self.route_space.index.str.contains(line), f'channel{row[2]}'] = 1
+            self.traffic_matrix.loc[row[0][0], row[0][-1]] += row[1]
+
     def generate_traffic(self, M: int, randomization='random', random_nodes_list=None):
         if random_nodes_list is None:
             random_nodes_list = []
@@ -314,14 +353,18 @@ class Network(object):
         else:
             list_flag = True
         cnt = 0
-        self.traffic_matrix = self.generate_traffic_matrix(M)
+        congested_line = False
+        max_channel_occupied = 0
+        if self.traffic_matrix is None:
+            self.traffic_matrix = self.generate_traffic_matrix(M)
+
         total_capacity = np.sum(self.traffic_matrix.to_numpy())
         # counter for the number of connection
         failed_connection = 0
         successful_connection = 0
         # represent the percentage of missed connection
         percentage = 10/100
-        elements = list(permutations(self.nodes.keys(), 2))
+        elements = self.set_list_of_possible_connection()
         # this will guarantee always the same sequence of random nodes even if the number of picked connection change
         if randomization != 'random':
             np.random.seed(2022)
@@ -337,6 +380,16 @@ class Network(object):
                     list_flag = False
                     random_nodes_list.append(random_nodes)
             bit_rate_connection = self.stream([Connection(random_nodes[0], random_nodes[1], 0)], 'snr').pop().bit_rate
+            if not congested_line:
+                for line in self.lines:
+                    tmp = np.sum(self.lines[line].state)
+                    if not tmp:
+                        congested_line = True
+                        self.congested_line = line
+                        break
+                    if tmp < max_channel_occupied:
+                        max_channel_occupied = tmp
+                        self.congested_line = line
             if bit_rate_connection != 0:
                 successful_connection += 1
                 self.update_traffic_matrix(random_nodes, bit_rate_connection, elements)
@@ -393,7 +446,19 @@ if __name__ == '__main__':
     tot, lista3 = network.generate_traffic(5, 'list', lista2)
     print('fixed', tot, lista3)
     """
-    network = Network('../sources/nodes_shannon_transceiver.json')
+    network = Network('../sources/nodes_flex-rate_transceiver.json')
     network.connect()
-    print(np.sum(network.generate_traffic_matrix(2).to_numpy()))
+
+    network.generate_traffic(17, 'seed')
+    print(network.traffic_matrix)
+    print()
+    print(network.congested_line)
+    network.recovery_traffic()
+    """
+    with pd.ExcelWriter("../logger.xlsx") as writer:
+        network.logger.to_excel(writer)
+    """
+    print(network.traffic_matrix)
+    print()
+    network.generate_traffic(1, 'seed')
     print(network.traffic_matrix)

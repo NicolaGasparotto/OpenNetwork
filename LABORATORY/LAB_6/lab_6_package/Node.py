@@ -1,5 +1,5 @@
-from LAB_7.lab_7_package.Signal_information import Signal_information
-from LAB_7.lab_7_package.Line import *
+from LAB_6.lab_6_package.Signal_information import Signal_information
+from LAB_6.lab_6_package.Line import *
 
 
 class Node(object):

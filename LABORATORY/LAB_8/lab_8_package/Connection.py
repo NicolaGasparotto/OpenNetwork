@@ -2,7 +2,7 @@
 
 class Connection(object):
 
-    def __init__(self, input_node: str, output_node: str, signal_power: float):
+    def __init__(self, input_node: str, output_node: str, signal_power=0):
         self._input_node = input_node
         self._output_node = output_node
         self._signal_power = signal_power

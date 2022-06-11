@@ -60,7 +60,7 @@ def main():
     plt.show()
 
     # -------------------------------------------------------------------------------------------------------
-    M = list(range(1, 500))
+    M = list(range(1, 60))
     total_network_capacity_fixed = []
     total_network_capacity_flex = []
     total_network_capacity_shannon = []

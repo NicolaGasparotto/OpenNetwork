@@ -171,7 +171,7 @@ class Line(object):
         self.successive = new_successive
 
     def ase_generation(self):
-        self.ase = (self.n_amplifier - 2) * (Planck * CONSTANTS['frequency'] * CONSTANTS['Bn'] *
+        self.ase = (self.n_amplifier - 1) * (Planck * CONSTANTS['frequency'] * CONSTANTS['Bn'] *
                                              from_dB_to_linear(self.noise_figure) * (from_dB_to_linear(self.gain) - 1))
         return self.ase
 
@@ -192,8 +192,9 @@ class Line(object):
         return e_nli
 
     def optimized_launch_power(self, eta):
-        # (NF * f * h * G/2*eta) ^ 1/3
-        return ((from_dB_to_linear(self.noise_figure) * from_dB_to_linear(self.gain) * Planck * CONSTANTS[
+        # (ase()/ (2 * Bn * eta_nli * (n_ampl - 1)) ) ^ 1/3
+        # (NF * f * h * (G-1)/2*eta) ^ 1/3
+        return ((from_dB_to_linear(self.noise_figure) * (from_dB_to_linear(self.gain) - 1) * Planck * CONSTANTS[
             'frequency']) / (2 * eta)) ** (1 / 3)
 
     def latency_generation(self):
@@ -224,11 +225,11 @@ class Line(object):
         lightpath = self.successive[lightpath.path[0]].propagate(lightpath)
         return lightpath
 
-    def update_state(self, channel: int):
+    def update_state(self, channel: int, status=0):
         # update the state of the channel in the list of available channels
         # the first free channel found will be changed and the function will stop
         # there is no control for the condition when all the channels are occupied
-        self.state[channel] = 0
+        self.state[channel] = status
 
     def __str__(self):
         return f"Node line: {self.label}\nLength: {self.length}\nState (1->Free, 0->Occupied): {self.state}\n"

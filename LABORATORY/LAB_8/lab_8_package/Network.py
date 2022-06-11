@@ -34,11 +34,10 @@ class Network(object):
         self._weighted_paths = None
         # Dataframe that contains path and availability of the channels for the connection
         self._route_space = None
-        # it's the same dataframe but when a connection occupies a channel the path and so the channel will be removed
-        self._route_space_without_occupied_channels = None
         # for default the signal power propagating along the network it's set to be
         self.traffic_matrix = None
-
+        self.logger = None
+        
         # definition of nodes and lines
         for node_name in json_data:
             node_i_dict = json_data[node_name]
@@ -84,14 +83,6 @@ class Network(object):
         self._route_space = new_route_space
 
     @property
-    def route_space_without_occupied_channels(self):
-        return self._route_space_without_occupied_channels
-
-    @route_space_without_occupied_channels.setter
-    def route_space_without_occupied_channels(self, new_route_space_without_occupied_channels):
-        self._route_space_without_occupied_channels = new_route_space_without_occupied_channels
-
-    @property
     def traffic_matrix(self):
         return self._traffic_matrix
 
@@ -99,6 +90,14 @@ class Network(object):
     def traffic_matrix(self, new_traffic_matrix):
         self._traffic_matrix = new_traffic_matrix
 
+    @property
+    def logger(self):
+        return self._logger
+    
+    @logger.setter
+    def logger(self, new_logger):
+        self._logger = new_logger
+    
     def connect(self):
         for node_name in self.nodes:
             for connected_node in self.nodes[node_name].connected_nodes:
@@ -135,23 +134,24 @@ class Network(object):
         df['snr'] = snrs
         self.weighted_paths = df
 
+    def set_route_space(self):
+        # this method will create and set a dataframe with paths and states of the lines, initially set to free
+        if self.weighted_paths is None:
+            return
+        columns = [f'channel{i}' for i in range(self.channels_number)]
+        df = pd.DataFrame(1, columns=columns, index=self.weighted_paths['path'])
+        self.route_space = df
+
+    def set_logger(self):
+        columns = ['path', 'epoch_time', 'channel_ID', 'bit_rate']
+        df = pd.DataFrame(columns=columns)
+        self.logger = df
+
     def probe(self, lightpath: Lightpath):
         return self.nodes[lightpath.path[0]].probe(lightpath)
 
     def propagate(self, lightpath):
         return self.nodes[lightpath.path[0]].propagate(lightpath)
-
-    def set_route_space(self):
-        # this method will create and set a dataframe with paths and states of the lines, initially set to free
-        if self.weighted_paths is None:
-            return
-        df = pd.DataFrame()
-        df['path'] = self.weighted_paths['path']
-        df = df.loc[df.index.repeat(self.channels_number)].reset_index(
-            drop=True)  # without the drop=Ture it will maintain also the old indexes
-        df['channel_state'] = 1  # setting all the channel as free -> value 1
-        self.route_space = df
-        self.route_space_without_occupied_channels = df.copy()  # this copy will be modified removing the occupied channels
 
     def find_path(self, start_node: str, end_node: str):
         visited = {}
@@ -184,8 +184,8 @@ class Network(object):
         # possible_paths_i_o is a list with the possible path that connects node input to output
         # in this way when it searches, it will do it directly on the database of available path
         # in the update method when a line it's occupied it will be removed from the database
-        possible_paths_i_o = [path for path in self.route_space_without_occupied_channels['path'].tolist()
-                              if (path[0] == input_node and path[-1] == output_node)]
+        possible_paths_i_o = [path for path in list(self.route_space.index)
+                              if (path[0] == input_node and path[-1] == output_node) and (self.route_space.loc[path].any())]
         # if the list of possible path is empty it means that there are no free path
         if not possible_paths_i_o:
             return None
@@ -196,8 +196,8 @@ class Network(object):
 
     def find_best_latency(self, input_node: str, output_node: str):
         # possible_paths_i_o is a list with the possible path that connects node input to output
-        possible_paths_i_o = [path for path in self.route_space_without_occupied_channels['path'].tolist()
-                              if (path[0] == input_node and path[-1] == output_node)]
+        possible_paths_i_o = [path for path in list(self.route_space.index)
+                              if (path[0] == input_node and path[-1] == output_node) and (self.route_space.loc[path].any())]
         # if the list of possible path is empty it means that there are no free path
         if not possible_paths_i_o:
             return None
@@ -236,8 +236,7 @@ class Network(object):
                 # creating a lightpath object that has to be propagated along the path to retrieve the information about
                 # the connection
                 lightpath = Lightpath(0, path.split('->'))
-                dft = self.route_space_without_occupied_channels
-                channel = (dft.loc[(dft['path'] == path) & (dft['channel_state'] == 1)].index[0]) % self.channels_number
+                channel = np.nonzero(self.route_space.loc[path].values[:])[0][0]  # taking the first channel that is not 0
                 # the path exist, the bit_rate will be calculated with the transceiver of the first node of the given path
                 lightpath.channel_slot = channel
                 bit_rate = self.calculate_bit_rate(lightpath, self.nodes[path[0]].transceiver)
@@ -287,18 +286,14 @@ class Network(object):
         return bit_rate
 
     def update_paths_channel(self, path, channel):
-        paths = [path[i * 3:i * 3 + 4] for i in range(int(len(path) / 3))]  # paths contains all the line of the path
-        df_tmp = self.route_space_without_occupied_channels
-        selected_paths = df_tmp.loc[df_tmp['path'].apply(lambda x: True if any(i in x for i in paths) else False), 'path']
-
-        indexes = [i for i in selected_paths.index if (i % self.channels_number) == channel]
-        self.route_space.loc[indexes, 'channel_state'] = 0
-        self.route_space_without_occupied_channels = self.route_space_without_occupied_channels.drop(indexes)
+        paths = [path[i * 3:i * 3 + 4] for i in range(int(len(path) / 3))]  # all the lines inside the path
+        paths = '|'.join(paths)
+        self.route_space.loc[self.route_space.index.str.contains(paths), f'channel{channel}'] = 0
 
     def generate_traffic_matrix(self, M: int):
         traffic_matrix = np.where(np.eye(len(self.nodes)) > 0, 0, 100 * M)
         index_values = column_values = self.nodes.keys()
-        self.traffic_matrix = pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
+        return pd.DataFrame(data=traffic_matrix, index=index_values, columns=column_values)
 
     def update_traffic_matrix(self, nodes, bit_rate_connection, elements):
         node_I = nodes[0]
@@ -312,8 +307,14 @@ class Network(object):
             self.traffic_matrix.loc[node_I, node_O] = 0
             elements.remove(nodes)
 
-    def generate_traffic(self, M: int):
-        self.generate_traffic_matrix(M)
+    def generate_traffic(self, M: int, randomization='random', random_nodes_list=None):
+        if random_nodes_list is None:
+            random_nodes_list = []
+            list_flag = False
+        else:
+            list_flag = True
+        cnt = 0
+        self.traffic_matrix = self.generate_traffic_matrix(M)
         total_capacity = np.sum(self.traffic_matrix.to_numpy())
         # counter for the number of connection
         failed_connection = 0
@@ -321,10 +322,20 @@ class Network(object):
         # represent the percentage of missed connection
         percentage = 10/100
         elements = list(permutations(self.nodes.keys(), 2))
+        # this will guarantee always the same sequence of random nodes even if the number of picked connection change
+        if randomization != 'random':
+            np.random.seed(2022)
         # generate connections until the traffic matrix is all 0 OR
         # the connection failed are greater than the connection streamed in percentage
         while (failed_connection <= percentage * successful_connection) and np.count_nonzero(self.traffic_matrix.to_numpy()):
-            random_nodes = random.choices(elements).pop()
+            random_nodes = elements[np.random.choice(len(elements))]
+            if randomization == 'list':
+                if cnt < len(random_nodes_list) and list_flag:
+                    random_nodes = random_nodes_list[cnt]
+                    cnt += 1
+                else:
+                    list_flag = False
+                    random_nodes_list.append(random_nodes)
             bit_rate_connection = self.stream([Connection(random_nodes[0], random_nodes[1], 0)], 'snr').pop().bit_rate
             if bit_rate_connection != 0:
                 successful_connection += 1
@@ -333,12 +344,10 @@ class Network(object):
                 failed_connection += 1
 
         total_satisfied_traffic = total_capacity - np.sum(self.traffic_matrix.to_numpy())
-        """
-        if not np.count_nonzero(matrix):
-            return M, total_capacity
-        return -1, total_capacity
-        """
-        return (total_satisfied_traffic/total_capacity)*100
+
+        if randomization == 'list':
+            return total_satisfied_traffic, random_nodes_list
+        return total_satisfied_traffic
 
     def draw(self):
         G = nx.Graph()
@@ -362,16 +371,29 @@ class Network(object):
             print(self._lines[line_name])
 
     def reset_network(self):
-        self.route_space['channel_state'] = 1
-        self.route_space_without_occupied_channels = self.route_space.copy()
+        self.route_space.loc[:, :] = 1
         for line in self.lines:
             self.lines[line].state = [1] * self.lines[line].n_channel
 
 
 if __name__ == '__main__':
+    """
     network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
-    network.generate_traffic(30)
-    print(network.traffic_matrix)
+    tot, lista1 = network.generate_traffic(5, 'list')
+    print('shannon', tot, lista1)
+
+    network = Network('../sources/nodes_flex-rate_transceiver.json')
+    network.connect()
+    tot, lista2 = network.generate_traffic(5, 'list', lista1)
+    print('flex', tot, lista1)
+
+    network = Network('../sources/nodes_fixed-rate_transceiver.json')
+    network.connect()
+    tot, lista3 = network.generate_traffic(5, 'list', lista2)
+    print('fixed', tot, lista3)
+    """
+    network = Network('../sources/nodes_shannon_transceiver.json')
+    network.connect()
 
 
