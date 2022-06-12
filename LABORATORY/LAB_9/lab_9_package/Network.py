@@ -95,7 +95,7 @@ class Network(object):
     @property
     def logger(self):
         return self._logger
-    
+
     @logger.setter
     def logger(self, new_logger):
         self._logger = new_logger
@@ -195,7 +195,8 @@ class Network(object):
         # in this way when it searches, it will do it directly on the database of available path
         # in the update method when a line it's occupied it will be removed from the database
         possible_paths_i_o = [path for path in list(self.route_space.index)
-                              if (path[0] == input_node and path[-1] == output_node) and (self.route_space.loc[path].any())]
+                              if (path[0] == input_node and path[-1] == output_node) and (
+                                  self.route_space.loc[path].any())]
         # if the list of possible path is empty it means that there are no free path
         if not possible_paths_i_o:
             return None
@@ -247,7 +248,8 @@ class Network(object):
                 # creating a lightpath object that has to be propagated along the path to retrieve the information about
                 # the connection
                 lightpath = Lightpath(0, path.split('->'))
-                channel = np.nonzero(self.route_space.loc[path].values[:])[0][0]  # taking the first channel that is not 0
+                channel = np.nonzero(self.route_space.loc[path].values[:])[0][
+                    0]  # taking the first channel that is not 0
                 # the path exist, the bit_rate will be calculated with the transceiver of the first node of the given path
                 lightpath.channel_slot = channel
                 bit_rate = self.calculate_bit_rate(lightpath, self.nodes[path[0]].transceiver)
@@ -260,7 +262,7 @@ class Network(object):
                     # setting the value of the connection
                     connection.signal_power = lightpath_out.signal_power
                     connection.latency = lightpath_out.latency
-                    connection.snr = 10*math.log10(lightpath_out.signal_power/lightpath_out.noise_power)
+                    connection.snr = 10 * math.log10(lightpath_out.signal_power / lightpath_out.noise_power)
                     connection.bit_rate = bit_rate
                 else:
                     reject_connection(connection)
@@ -276,21 +278,22 @@ class Network(object):
         Bn = CONSTANTS['Bn']
         Rs = lightpath.Rs  # specific symbol rate of the lightpath
         BERt = CONSTANTS['BERt']
-        Gsnr = 10**(float(self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr'])/10)  # gsnr in linear unit
-        RB = (Rs/Bn)
+        Gsnr = 10 ** (float(
+            self.weighted_paths.loc[self.weighted_paths['path'] == path, 'snr']) / 10)  # gsnr in linear unit
+        RB = (Rs / Bn)
         if strategy == 'fixed-rate':
-            bit_rate = 100*Gbps if Gsnr >= (2*(erfcinv(2*BERt)**2)*RB) else 0
+            bit_rate = 100 * Gbps if Gsnr >= (2 * (erfcinv(2 * BERt) ** 2) * RB) else 0
         elif strategy == 'flex-rate':
-            if Gsnr < 2*(erfcinv(2*BERt)**2)*RB:
+            if Gsnr < 2 * (erfcinv(2 * BERt) ** 2) * RB:
                 bit_rate = 0
-            elif Gsnr < (14/3)*(erfcinv(1.5*BERt)**2)*RB:
-                bit_rate = 100*Gbps
-            elif Gsnr < 10*(erfcinv((8/3)*BERt)**2)*RB:
-                bit_rate = 200*Gbps
+            elif Gsnr < (14 / 3) * (erfcinv(1.5 * BERt) ** 2) * RB:
+                bit_rate = 100 * Gbps
+            elif Gsnr < 10 * (erfcinv((8 / 3) * BERt) ** 2) * RB:
+                bit_rate = 200 * Gbps
             else:
-                bit_rate = 400*Gbps
+                bit_rate = 400 * Gbps
         elif strategy == 'shannon':
-            bit_rate = 2*Rs*math.log2(1 + Gsnr*RB)*Gbps/1e9  # to have the bit_rate in Gbps
+            bit_rate = 2 * Rs * math.log2(1 + Gsnr * RB) * Gbps / 1e9  # to have the bit_rate in Gbps
         else:
             print("Error: it's not possible not having a transceiver not defined")
             return
@@ -299,7 +302,8 @@ class Network(object):
     def update_logger(self, path: str, channel_id: int, bit_rate: float):
         if self.logger is None:
             self.set_logger()
-        value = {'path': path, 'epoch_time': datetime.now().strftime('%d/%m/%Y %H:%M:%S'), 'channel_ID': channel_id, 'bit_rate': bit_rate}
+        value = {'path': path, 'epoch_time': datetime.now().strftime('%d/%m/%Y %H:%M:%S'), 'channel_ID': channel_id,
+                 'bit_rate': bit_rate}
         self.logger = self.logger.append(value, ignore_index=True)
 
     def update_paths_channel(self, path, channel):
@@ -326,7 +330,8 @@ class Network(object):
 
     def strong_failure(self, line_label: str):
         self.lines[line_label].in_service = 0
-        self.lines[line_label].state = [0]*self.channels_number
+        self.lines[line_label].state = [0] * self.channels_number
+        self.route_space = self.route_space[self.route_space.index.str.contains(line_label) == False]
 
     def set_list_of_possible_connection(self):
         elements = list(permutations(self.nodes.keys(), 2))
@@ -354,7 +359,7 @@ class Network(object):
             list_flag = True
         cnt = 0
         congested_line = False
-        max_channel_occupied = 0
+        max_channel_occupied = self.channels_number
         if self.traffic_matrix is None:
             self.traffic_matrix = self.generate_traffic_matrix(M)
 
@@ -363,14 +368,15 @@ class Network(object):
         failed_connection = 0
         successful_connection = 0
         # represent the percentage of missed connection
-        percentage = 10/100
+        percentage = 10 / 100
         elements = self.set_list_of_possible_connection()
         # this will guarantee always the same sequence of random nodes even if the number of picked connection change
         if randomization != 'random':
             np.random.seed(2022)
         # generate connections until the traffic matrix is all 0 OR
         # the connection failed are greater than the connection streamed in percentage
-        while (failed_connection <= percentage * successful_connection) and np.count_nonzero(self.traffic_matrix.to_numpy()):
+        while (failed_connection <= percentage * successful_connection) and np.count_nonzero(
+                self.traffic_matrix.to_numpy()):
             random_nodes = elements[np.random.choice(len(elements))]
             if randomization == 'list':
                 if cnt < len(random_nodes_list) and list_flag:
@@ -382,14 +388,15 @@ class Network(object):
             bit_rate_connection = self.stream([Connection(random_nodes[0], random_nodes[1], 0)], 'snr').pop().bit_rate
             if not congested_line:
                 for line in self.lines:
-                    tmp = np.sum(self.lines[line].state)
-                    if not tmp:
-                        congested_line = True
-                        self.congested_line = line
-                        break
-                    if tmp < max_channel_occupied:
-                        max_channel_occupied = tmp
-                        self.congested_line = line
+                    if self.lines[line].in_service:
+                        tmp = np.sum(self.lines[line].state)
+                        if not tmp:
+                            congested_line = True
+                            self.congested_line = line
+                            break
+                        if tmp < max_channel_occupied:
+                            max_channel_occupied = tmp
+                            self.congested_line = line
             if bit_rate_connection != 0:
                 successful_connection += 1
                 self.update_traffic_matrix(random_nodes, bit_rate_connection, elements)
@@ -449,10 +456,11 @@ if __name__ == '__main__':
     network = Network('../sources/nodes_flex-rate_transceiver.json')
     network.connect()
 
-    network.generate_traffic(17, 'seed')
+    network.generate_traffic(10, 'seed')
     print(network.traffic_matrix)
-    print()
     print(network.congested_line)
+    print()
+    network.strong_failure(network.congested_line)
     network.recovery_traffic()
     """
     with pd.ExcelWriter("../logger.xlsx") as writer:
@@ -461,4 +469,5 @@ if __name__ == '__main__':
     print(network.traffic_matrix)
     print()
     network.generate_traffic(1, 'seed')
+    print(network.congested_line)
     print(network.traffic_matrix)
