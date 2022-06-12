@@ -363,7 +363,7 @@ class Network(object):
         if self.traffic_matrix is None:
             self.traffic_matrix = self.generate_traffic_matrix(M)
 
-        total_capacity = np.sum(self.traffic_matrix.to_numpy())
+        total_capacity = np.sum(self.generate_traffic_matrix(M).to_numpy())
         # counter for the number of connection
         failed_connection = 0
         successful_connection = 0
@@ -431,43 +431,51 @@ class Network(object):
             print(self._lines[line_name])
 
     def reset_network(self):
-        self.route_space.loc[:, :] = 1
+        self.congested_line = None
+        self.traffic_matrix = None
+        self.set_route_space()
+        self.set_logger()
         for line in self.lines:
             self.lines[line].state = [1] * self.lines[line].n_channel
+            self.lines[line].in_service = 1
 
 
 if __name__ == '__main__':
     """
+        with pd.ExcelWriter("../logger.xlsx") as writer:
+            network.logger.to_excel(writer)
+    
     network = Network('../sources/nodes_shannon_transceiver.json')
     network.connect()
-    tot, lista1 = network.generate_traffic(5, 'list')
-    print('shannon', tot, lista1)
 
-    network = Network('../sources/nodes_flex-rate_transceiver.json')
-    network.connect()
-    tot, lista2 = network.generate_traffic(5, 'list', lista1)
-    print('flex', tot, lista1)
+    network1 = Network('../sources/nodes_flex-rate_transceiver.json')
+    network1.connect()
 
-    network = Network('../sources/nodes_fixed-rate_transceiver.json')
-    network.connect()
-    tot, lista3 = network.generate_traffic(5, 'list', lista2)
-    print('fixed', tot, lista3)
-    """
-    network = Network('../sources/nodes_flex-rate_transceiver.json')
-    network.connect()
+    network2 = Network('../sources/nodes_fixed-rate_transceiver.json')
+    network2.connect()
 
-    network.generate_traffic(10, 'seed')
-    print(network.traffic_matrix)
-    print(network.congested_line)
-    print()
+    m = 14
+    # sh
+    tot, l_sh = network.generate_traffic(m, 'list')
+    print(tot)
     network.strong_failure(network.congested_line)
     network.recovery_traffic()
-    """
-    with pd.ExcelWriter("../logger.xlsx") as writer:
-        network.logger.to_excel(writer)
-    """
-    print(network.traffic_matrix)
-    print()
-    network.generate_traffic(1, 'seed')
+    print(network.generate_traffic(m, 'seed'))
     print(network.congested_line)
-    print(network.traffic_matrix)
+
+    # flex
+    tot, l_flex = network1.generate_traffic(m, 'list', l_sh)
+    print(tot)
+    network1.strong_failure(network1.congested_line)
+    network1.recovery_traffic()
+    print(network1.generate_traffic(m, 'seed'))
+    print(network1.congested_line)
+
+    # fixed
+    tot, l_fxd = network2.generate_traffic(m, 'list', l_flex)
+    print(tot)
+    network2.strong_failure(network2.congested_line)
+    network2.recovery_traffic()
+    print(network2.generate_traffic(m, 'seed'))
+    print(network2.congested_line)
+    """
