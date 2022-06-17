@@ -2,6 +2,7 @@ import random
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 from LAB_5.lab_5_package.Connection import Connection
 from LAB_5.lab_5_package.Network import Network
@@ -9,13 +10,14 @@ from LAB_5.lab_5_package.Network import Network
 
 def main():
     connections_number = 100
-    network = Network('../nodes.json')
+    network = Network('../../LAB_9/sources/258542.json')
     network.connect()
 
     signal_power_connection = 0.001  # Watts
     # first, create a list of 100 casual entries of connection
     node_list = list(network.nodes.keys())
     connections = []
+    random.seed(2022)
     for i in range(0, connections_number):
         random_nodes = random.sample(node_list, 2)  # this function create the random input nodes
         connections.append(Connection(random_nodes[0], random_nodes[1], signal_power_connection))
@@ -28,6 +30,8 @@ def main():
     count_null = len(list(filter(lambda elm: elm is None, latency_array)))
     plt.hist(latencies)
     plt.grid(True)
+    plt.xlabel('latency')
+    plt.ylabel('number of accepted connection')
     plt.title(f'Distribution of Latency along {connections_number} Connections\nConnections rejected: {count_null}')
     plt.show()
 
@@ -40,8 +44,12 @@ def main():
     count_null = len([zero for zero in snr_array if not zero])
     plt.hist(snrs)
     plt.grid(True)
+    plt.xlabel('snr')
+    plt.ylabel('number of accepted connection')
     plt.title(f'Distribution of SNR along {connections_number} Connections\nConnections rejected: {count_null}')
     plt.show()
+
+    print(np.mean(latencies), np.mean(snrs))
 
 
 if __name__ == '__main__':

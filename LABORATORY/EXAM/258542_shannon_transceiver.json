@@ -1,0 +1,68 @@
+{
+    "A": {
+        "connected_nodes": [
+            "B",
+            "C",
+            "D",
+            "E"
+        ],
+        "position": [
+            -155458,
+            495759
+        ],
+        "transceiver":
+          "shannon"
+    },
+    "B": {
+        "connected_nodes": [
+            "C",
+            "A"
+        ],
+        "position": [
+            110596,
+            -139946
+        ],
+        "transceiver":
+          "shannon"
+    },
+    "C": {
+        "connected_nodes": [
+            "D",
+            "E",
+            "A",
+            "B"
+        ],
+        "position": [
+            -207349,
+            -297765
+        ],
+        "transceiver":
+          "shannon"
+    },
+    "D": {
+        "connected_nodes": [
+            "A",
+            "E",
+            "C"
+        ],
+        "position": [
+            466281,
+            -123376
+        ],
+        "transceiver":
+          "shannon"
+    },
+    "E": {
+        "connected_nodes": [
+            "A",
+            "D",
+            "C"
+        ],
+        "position": [
+            322534,
+            206138
+        ],
+        "transceiver":
+          "shannon"
+    }
+}

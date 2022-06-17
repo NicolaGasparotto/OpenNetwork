@@ -15,11 +15,11 @@ import numpy as np
 import pandas as pd
 from scipy.special import erfcinv
 
-from LAB_9.lab_9_package.Connection import Connection
+from EXAM.NETWORK.network_package.Connection import Connection
 # Classes of the Network
-from LAB_9.lab_9_package.Lightpath import Lightpath
-from LAB_9.lab_9_package.Line import Line
-from LAB_9.lab_9_package.Node import Node
+from EXAM.NETWORK.network_package.Lightpath import Lightpath
+from EXAM.NETWORK.network_package.Line import Line
+from EXAM.NETWORK.network_package.Node import Node
 from constants import CONSTANTS
 
 

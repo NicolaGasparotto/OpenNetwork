@@ -1,13 +1,14 @@
 import random
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from LAB_4.lab_4_package.Connection import Connection
 from LAB_4.lab_4_package.Network import Network
 
 
 def main():
-    network = Network('../nodes.json')
+    network = Network('../../LAB_9/sources/258542.json')
     network.connect()
     # network.draw()
     # print(network.weighted_paths)
@@ -29,6 +30,8 @@ def main():
     # print(latency_array)
     plt.hist(latencies)
     plt.grid(True)
+    plt.xlabel('latency')
+    plt.ylabel('number of accepted connection')
     plt.title(f'Distribution of Latency along 100 Connections\nConnections rejected: {count_null}')
     plt.show()
 
@@ -43,8 +46,12 @@ def main():
     # print(count_null)
     plt.hist(snrs)
     plt.grid(True)
+    plt.xlabel('snr')
+    plt.ylabel('number of accepted connection')
     plt.title(f'Distribution of Snr along 100 Connections\nConnections rejected: {count_null}')
     plt.show()
+
+    print(np.mean(latencies), np.mean(snrs))
 
 
 if __name__ == '__main__':

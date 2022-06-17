@@ -48,19 +48,20 @@ def main():
     plt.ylabel('BIT RATE [Gbps]')
     plt.show()
 
-    network_fixed_rate = Network('../sources/nodes_fixed-rate_transceiver.json')
+    network_fixed_rate = Network('../../EXAM/258542_fixed_rate_transceiver.json')
     network_fixed_rate.connect()
 
-    network_shannon = Network('../sources/nodes_shannon_transceiver.json')
+    network_shannon = Network('../../EXAM/258542_shannon_transceiver.json')
     network_shannon.connect()
 
-    network_flex_rate = Network('../sources/nodes_flex-rate_transceiver.json')
+    network_flex_rate = Network('../../EXAM/258542_flex_rate_transceiver.json')
     network_flex_rate.connect()
 
     number_of_connections = 100
     signal_power_connection = 0.001  # Watts
     # first, create a list of 100 casual entries of connection
     node_list = list(network_fixed_rate.nodes.keys())
+    random.seed(2022)
     connections = []
     for i in range(0, number_of_connections):
         random_nodes = random.sample(node_list, 2)  # this function create the random input nodes

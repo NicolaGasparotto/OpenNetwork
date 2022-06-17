@@ -1,18 +1,18 @@
 import matplotlib.pyplot as plt
 
-from LAB_9.lab_9_package.Network import *
+from EXAM.NETWORK.network_package.Network import *
 
 
 def main_lab9():
-    network_fixed_rate = Network('../../EXAM/258542_fixed_rate_transceiver.json')
+    network_fixed_rate = Network('../../258542_fixed_rate_transceiver.json')
     network_fixed_rate.connect()
-    network_shannon = Network('../../EXAM/258542_shannon_transceiver.json')
+    network_shannon = Network('../../258542_shannon_transceiver.json')
     network_shannon.connect()
-    network_flex_rate = Network('../../EXAM/258542_flex_rate_transceiver.json')
+    network_flex_rate = Network('../../258542_flex_rate_transceiver.json')
     network_flex_rate.connect()
 
     # -------------------------------------------------------------------------------------------------------
-    M = list(range(1, 101))
+    M = list(range(1, 10))
     total_network_capacity_fixed = []
     total_network_capacity_flex = []
     total_network_capacity_shannon = []
