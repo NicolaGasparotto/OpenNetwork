@@ -32,7 +32,6 @@ def calculate_bit_rate(snr, strategy: str):
 
 
 def main_lab_6():
-
     # printing general spec
     """
     snrs = np.linspace(0, 60, num=500)

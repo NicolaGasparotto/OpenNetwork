@@ -178,24 +178,19 @@ class Line(object):
     def nli_generation(self, lightpath: Lightpath):
         # signal_power^3 * eta_nli * Nspan * noise_bandwidth
         #                        >>> N span--> numero fibre lungo la linea --> NUMERO AMPLFIEIR -1
-        self.nli = lightpath.signal_power ** 3 * self.eta_nli(lightpath.df,
-                                                              lightpath.Rs) * (self.n_amplifier - 1) * CONSTANTS['Bn']
-        return self.nli
+        nli = (lightpath.signal_power ** 3) * self.eta_nli(lightpath.df, lightpath.Rs) * (self.n_amplifier - 1) * CONSTANTS['Bn']
+        return nli
 
     def eta_nli(self, df, Rs):
         # 16/27pi * log(pi^2/2 * beta2*Rs^2/alfa * N^(2*Rf/df) ) * gamma^2/4alfa*beta2 * 1/Rs**3
         a = self.alfa_dB / (10 * math.log10(math.e))
-        e_nli = 16 / (27 * math.pi) * math.log(
-            math.pi ** 2 * self.abs_beta2 * Rs ** 2 * self.n_channel ** (2 * Rs / df) / (2 * a)) * self.gamma ** 2 / (
-                        4 * a * self.abs_beta2 * Rs ** 3)
-
+        e_nli = (16 / (27 * math.pi)) * math.log((
+            math.pi ** 2 * self.abs_beta2 * Rs ** 2 * (self.n_channel ** (2 * Rs / df))) / (2 * a)) * (self.gamma ** 2) / (4 * a * self.abs_beta2 * Rs ** 3)
         return e_nli
 
     def optimized_launch_power(self, eta):
         # (ase()/ (2 * Bn * eta_nli * (n_ampl - 1)) ) ^ 1/3
-        # (NF * f * h * (G-1)/2*eta) ^ 1/3
-        return ((from_dB_to_linear(self.noise_figure) * (from_dB_to_linear(self.gain) - 1) * Planck * CONSTANTS[
-            'frequency']) / (2 * eta)) ** (1 / 3)
+        return (self.ase_generation()/(2*CONSTANTS['Bn']*eta*(self.n_amplifier-1))) ** (1.0/3.0)
 
     def latency_generation(self):
         c = 3 * (10 ** 9)  # light speed

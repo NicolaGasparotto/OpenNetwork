@@ -351,7 +351,7 @@ class Network(object):
                     self.route_space.loc[self.route_space.index.str.contains(line), f'channel{row[2]}'] = 1
             self.traffic_matrix.loc[row[0][0], row[0][-1]] += row[1]
 
-    def generate_traffic(self, M: int, randomization='random', random_nodes_list=None):
+    def generate_traffic(self, M: int, randomization='random', random_nodes_list=None, connection_out=False):
         if random_nodes_list is None:
             random_nodes_list = []
             list_flag = False
@@ -359,6 +359,9 @@ class Network(object):
             list_flag = True
         cnt = 0
         congested_line = False
+        if connection_out:
+            streamed_connection = []
+
         max_channel_occupied = self.channels_number
         if self.traffic_matrix is None:
             self.traffic_matrix = self.generate_traffic_matrix(M)
@@ -385,7 +388,10 @@ class Network(object):
                 else:
                     list_flag = False
                     random_nodes_list.append(random_nodes)
-            bit_rate_connection = self.stream([Connection(random_nodes[0], random_nodes[1], 0)], 'snr').pop().bit_rate
+            out_conn = self.stream([Connection(random_nodes[0], random_nodes[1], 0)], 'snr').pop()
+            if connection_out:
+                streamed_connection.append(out_conn)
+            bit_rate_connection = out_conn.bit_rate
             if not congested_line:
                 for line in self.lines:
                     if self.lines[line].in_service:
@@ -406,6 +412,8 @@ class Network(object):
         total_satisfied_traffic = total_capacity - np.sum(self.traffic_matrix.to_numpy())
 
         if randomization == 'list':
+            if connection_out:
+                return total_satisfied_traffic, random_nodes_list, streamed_connection
             return total_satisfied_traffic, random_nodes_list
         return total_satisfied_traffic
 
